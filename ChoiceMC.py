@@ -76,7 +76,7 @@ def calculateOrientationalCorrelations(p1, p2):
     return np.cos(p1-p2)
 
 class ChoiceMC(object):
-    def __init__(self, m_max, P, g, MC_steps, N, Nskip=100, Nequilibrate=0, PIGS=False, T=1, B=1, V0=0, potentialField='transverse'):
+    def __init__(self, m_max, P, g, MC_steps, N, Nskip=100, Nequilibrate=0, PIGS=False, T=1, B=1, V0=0., potentialField='transverse'):
         """
         Creates a ChoiceMC object. This object can be used to generate the density
         matrices and performed the PIMC method based on the inputs. The results
@@ -450,12 +450,12 @@ class ChoiceMC(object):
         self.rhoVij: numpy array
             NxN array containing the probability density based on the interaction
             potential between nearest neighbours
-        self.rhoVij: numpy array
+        self.rhoV: numpy array
             Nx1 array containing the probability density based on the on-site interactions
 
         """
         # potential rho
-        self.rhoV=np.zeros((self.Ngrid),float)
+        self.rhoV = np.zeros((self.Ngrid),float)
         for i_new in range(self.Ngrid):
             self.rhoV[i_new] = np.exp(-self.tau * (self.potFunc(float(i_new)*self.delta_phi, self.V0)))
         # rho pair
@@ -520,7 +520,7 @@ class ChoiceMC(object):
             self.createRhoVij()
         
         p_dist=gen_prob_dist(self.Ngrid, self.rho_phi)
-        p_dist_end=gen_prob_dist_end(self.Ngrid, self.rho_phi)
+        p_dist_end = gen_prob_dist_end(self.Ngrid, self.rho_phi) if self.PIGS == True else None
         
         path_phi=np.zeros((self.N,self.P),int) ## i  N => number of beads
         for i in range(self.N):
@@ -563,38 +563,50 @@ class ChoiceMC(object):
                     if (p_plus>=self.P):
                         p_plus-=self.P  
                     
+                    # kinetic action, links between beads
                     if self.PIGS==True:
-                        # kinetic action
+                        # This uses a split open path of beads for PIGS
                         if p==0:
+                            # Special case for leftmost bead
                             for ip in range(self.Ngrid):
                                 prob_full[ip]=p_dist_end[ip,path_phi[i,p_plus]]
-                        if p==(self.P-1):
+                        elif p==(self.P-1):
+                            # Special case for rightmost bead
                             for ip in range(self.Ngrid):
                                 prob_full[ip]=p_dist_end[path_phi[i,p_minus],ip]
-                        if (p!=0 and p!= (self.P-1)):
+                        elif (p!=0 and p!= (self.P-1)):
+                            # All other beads
                             for ip in range(self.Ngrid):
                                 prob_full[ip]=p_dist[path_phi[i,p_minus],ip,path_phi[i,p_plus]]
                     else:
+                        # Regular kinetic interactions between beads, periodic conditions
                         for ip in range(self.Ngrid):
                             prob_full[ip]=p_dist[path_phi[i,p_minus],ip,path_phi[i,p_plus]]                         
-                            prob_full[ip]*=self.rhoV[ip] # local on site interaction
+                    
+                    # Local on site interaction with the potential field
+                    if self.V0 != 0.:
+                        for ip in range(self.Ngrid):
+                           prob_full[ip]*=self.rhoV[ip]
         
-                    # NN interactions and PBC(periodic boundary condistions)
+                    # NN interactions and PBC(periodic boundary conditions)
                     if (i<(self.N-1)):
+                        # Interaction with the rotor to the right
                         for ir in range(len(prob_full)):
                             prob_full[ir]*=self.rhoVij[ir,path_phi[i+1,p]]
-                    if (i>0):
+                    elif (i>0):
+                        # Interaction with the rotor to the left
                         for ir in range(len(prob_full)):
                             prob_full[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
-                            # BPC below
-                    if (i==0):
+                    elif (i==0):
+                        # Periodic BC for the leftmost rotor
                         for ir in range(len(prob_full)):
                             prob_full[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
-                    if (i==(self.N-1)):
+                    elif (i==(self.N-1)):
+                        # Periodic BC for the rightmost rotor
                         for ir in range(len(prob_full)):
                             prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
         
-                    #normalize
+                    # Normalize
                     norm_pro=0.
                     for ir in range(len(prob_full)):
                         norm_pro+=prob_full[ir]
@@ -682,32 +694,17 @@ class ChoiceMC(object):
           
         histo_out.close()
         
-    def runMCEntanglement(self, averagePotential = True, averageEnergy = True, orientationalCorrelations = True):
+    def runMCReplica(self):
         """
-        Performs the monte carlo integration to simulate the system.
+        Performs the monte carlo integration to simulate the system with entanglement considered. This employs
+        the replica trick and the extended ensemble to do so.
         
-        Parameters
-        ----------
-        averagePotential : bool, optional
-            Enables the tracking and calculation of the average potential. 
-            The default is True.
-        averageEnergy : bool, optional
-            Enables the tracking and calculation of the average energy. 
-            The default is True.
-        orientationalCorrelations : bool, optional
-            Enables the tracking and calculation of the orientational correllations. 
-            The default is True.
+        ############################# TO ADD: Ratio trick
 
         Returns
         -------
         self.S2: float
-            The resultanjt second Renyi entropy
-        self.V_MC: float
-            The resultant average system potential.
-        self.E_MC: float
-            The resultant average system energy.
-        self.eiej_MC: float
-            The resultant average system orientational correlation.
+            The resultant second Renyi entropy
         self.histo: numpy array
             Nx6 array containing:
                 1st column: The angle phi
@@ -761,33 +758,27 @@ class ChoiceMC(object):
         
         print('start MC')
         
-        # Initializing the observables to be tracked
-        V_average = 0. if averagePotential == True else None
-        E_average = 0. if averageEnergy == True else None
-        eiej_corr = 0. if orientationalCorrelations == True else None
-        
         # Entanglement
         N_swapped = 0
         N_unswapped = 0
         swapped = False
         path_phi_replica = path_phi.copy()
-            
         P_middle = int((self.P-1)/2)
         P_midLeft = P_middle - 1
+        
         prob_full=np.zeros(self.Ngrid,float)
         prob_full_replica=np.zeros(self.Ngrid,float)
         
         for n in range(self.MC_steps):
             # Entanglement estimators
             N_swapped += swapped
-            N_swapped += not swapped
+            N_unswapped += (not swapped)
+            # Metropolis critereon
+            rhoSwapped=0.
+            rhoUnswapped=0.
             
-            # Total and potential energy estimators
-            V_total=0.
-            E_total=0.
-            eiej=0.
-            V_swapped=0.
-            V_unswapped=0.
+            # This needs to be divided into the A and B partition, only the A
+            # partition should be involved in the swapping and unswapping
             for i in range(self.N):
                 for p in range(self.P): 
                     p_minus=p-1
@@ -827,12 +818,15 @@ class ChoiceMC(object):
                     else:
                         for ip in range(self.Ngrid):
                             prob_full[ip]=p_dist[path_phi[i,p_minus],ip,path_phi[i,p_plus]]                         
-                            prob_full[ip]*=self.rhoV[ip] # local on site interaction
                             prob_full_replica[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi_replica[i,p_plus]]                         
-                            prob_full_replica[ip]*=self.rhoV[ip] # local on site interaction
-                            
-        
-                    # NN interactions and PBC(periodic boundary condistions)
+                    
+                    # Local on site interaction with the potential field
+                    if self.V0 != 0.:
+                        for ip in range(self.Ngrid):
+                           prob_full[ip]*=self.rhoV[ip]
+                           prob_full_replica[ip]*=self.rhoV[ip]
+                       
+                    # NN interactions and PBC(periodic boundary conditions)
                     if (i<(self.N-1)):
                         # Interaction with right neighbour
                         if (p==P_middle) and swapped:
@@ -888,41 +882,43 @@ class ChoiceMC(object):
                     # Rejection free sampling
                     path_phi[i,p] = index
                     path_phi_replica[i,p] = index_replica
-        
+                    
                     histo_pimc[path_phi[i,p]]+=1.
                     
+                    
+                    ##################### FIX
                     # Calculating the swapped and unswapped potentials
-                    V_unswapped += self.potFunc(float(path_phi[i,p])*self.delta_phi,self.V0)
-                    V_unswapped += self.potFunc(float(path_phi_replica[i,p])*self.delta_phi,self.V0)
-                    V_swapped += self.potFunc(float(path_phi[i,p])*self.delta_phi,self.V0)
-                    V_swapped += self.potFunc(float(path_phi_replica[i,p])*self.delta_phi,self.V0)
-                    # Nearest neighbour interactions
-                    if (i<(self.N-1)):
-                        V_phi = Vij(path_phi[i,p]*self.delta_phi, path_phi[i+1,p]*self.delta_phi, self.g)
-                        V_replica = Vij(path_phi_replica[i,p]*self.delta_phi, path_phi_replica[i+1,p]*self.delta_phi, self.g)
-                        if (p==P_middle):
-                            V_swapped += Vij(path_phi[i,p]*self.delta_phi, path_phi_replica[i+1,p]*self.delta_phi, self.g)
-                            V_swapped += Vij(path_phi_replica[i,p]*self.delta_phi, path_phi[i+1,p]*self.delta_phi, self.g)
-                            V_unswapped += V_phi
-                            V_unswapped += V_replica
-                        else:
-                            V_swapped += V_phi
-                            V_swapped += V_replica
-                            V_unswapped += V_phi
-                            V_unswapped += V_replica
-                    elif (i==(self.N-1)):
-                        V_phi = Vij(path_phi[i,p]*self.delta_phi, path_phi[0,p]*self.delta_phi, self.g)
-                        V_replica = Vij(path_phi_replica[i,p]*self.delta_phi, path_phi_replica[0,p]*self.delta_phi, self.g)
-                        if (p==P_middle):
-                            V_swapped += Vij(path_phi[i,p]*self.delta_phi, path_phi_replica[0,p]*self.delta_phi, self.g)
-                            V_swapped += Vij(path_phi_replica[i,p]*self.delta_phi, path_phi[0,p]*self.delta_phi, self.g)
-                            V_unswapped += V_phi
-                            V_unswapped += V_replica
-                        else:
-                            V_swapped += V_phi
-                            V_swapped += V_replica
-                            V_unswapped += V_phi
-                            V_unswapped += V_replica
+                    # V_unswapped += self.potFunc(float(path_phi[i,p])*self.delta_phi,self.V0)
+                    # V_unswapped += self.potFunc(float(path_phi_replica[i,p])*self.delta_phi,self.V0)
+                    # V_swapped += self.potFunc(float(path_phi[i,p])*self.delta_phi,self.V0)
+                    # V_swapped += self.potFunc(float(path_phi_replica[i,p])*self.delta_phi,self.V0)
+                    # # Nearest neighbour interactions
+                    # if (i<(self.N-1)):
+                    #     V_phi = Vij(path_phi[i,p]*self.delta_phi, path_phi[i+1,p]*self.delta_phi, self.g)
+                    #     V_replica = Vij(path_phi_replica[i,p]*self.delta_phi, path_phi_replica[i+1,p]*self.delta_phi, self.g)
+                    #     if (p==P_middle):
+                    #         V_swapped += Vij(path_phi[i,p]*self.delta_phi, path_phi_replica[i+1,p]*self.delta_phi, self.g)
+                    #         V_swapped += Vij(path_phi_replica[i,p]*self.delta_phi, path_phi[i+1,p]*self.delta_phi, self.g)
+                    #         V_unswapped += V_phi
+                    #         V_unswapped += V_replica
+                    #     else:
+                    #         V_swapped += V_phi
+                    #         V_swapped += V_replica
+                    #         V_unswapped += V_phi
+                    #         V_unswapped += V_replica
+                    # elif (i==(self.N-1)):
+                    #     V_phi = Vij(path_phi[i,p]*self.delta_phi, path_phi[0,p]*self.delta_phi, self.g)
+                    #     V_replica = Vij(path_phi_replica[i,p]*self.delta_phi, path_phi_replica[0,p]*self.delta_phi, self.g)
+                    #     if (p==P_middle):
+                    #         V_swapped += Vij(path_phi[i,p]*self.delta_phi, path_phi_replica[0,p]*self.delta_phi, self.g)
+                    #         V_swapped += Vij(path_phi_replica[i,p]*self.delta_phi, path_phi[0,p]*self.delta_phi, self.g)
+                    #         V_unswapped += V_phi
+                    #         V_unswapped += V_replica
+                    #     else:
+                    #         V_swapped += V_phi
+                    #         V_swapped += V_replica
+                    #         V_unswapped += V_phi
+                    #         V_unswapped += V_replica         
                     
                 if (n%self.Nskip==0):
                     traj_out.write(str(path_phi[i,0]*self.delta_phi)+' ')
@@ -933,88 +929,44 @@ class ChoiceMC(object):
                 histo_L[path_phi[i,0]]+=1.
                 histo_R[path_phi[i,self.P-1]]+=1.
                 histo_middle[path_phi[i,P_middle]]+=1.
-
-                if n >= self.Nequilibrate and averagePotential == True:
-                    # External field
-                    V_total += self.potFunc(float(path_phi[i,P_middle])*self.delta_phi,self.V0)
-                    # Nearest neighbour interactions
-                    if (i<(self.N-1)):
-                        # Double check and think more about this, we only look at right neighbour?
-                        V_total += Vij(path_phi[i,P_middle]*self.delta_phi, path_phi[i+1,P_middle]*self.delta_phi, self.g)
-                    elif (i==(self.N-1)):
-                        V_total += Vij(path_phi[i,P_middle]*self.delta_phi, path_phi[0,P_middle]*self.delta_phi, self.g)
-                    
-                if n >= self.Nequilibrate and averageEnergy == True:
-                    # External field
-                    E_total += self.potFunc(float(path_phi[i,0])*self.delta_phi,self.V0)
-                    E_total += self.potFunc(float(path_phi[i,self.P-1])*self.delta_phi,self.V0)
-                    # Nearest neighbour interactions
-                    if (i<(self.N-1)):
-                        # Double check and think more about this, we only look at right neighbour?
-                        E_total += Vij(path_phi[i,0]*self.delta_phi, path_phi[i+1,0]*self.delta_phi, self.g)
-                        E_total += Vij(path_phi[i,self.P-1]*self.delta_phi, path_phi[i+1,self.P-1]*self.delta_phi, self.g)
-                    elif (i==(self.N-1)):
-                        E_total += Vij(path_phi[i,0]*self.delta_phi, path_phi[0,0]*self.delta_phi, self.g)
-                        E_total += Vij(path_phi[i,self.P-1]*self.delta_phi, path_phi[0,self.P-1]*self.delta_phi, self.g)
-                
-                if n >= self.Nequilibrate and orientationalCorrelations == True:
-                    if (i<(self.N-1)):
-                        eiej += calculateOrientationalCorrelations(path_phi[i,P_middle]*self.delta_phi, path_phi[i+1,P_middle]*self.delta_phi)
-                    if (i==(self.N-1)):
-                        eiej += calculateOrientationalCorrelations(path_phi[i,P_middle]*self.delta_phi, path_phi[0,P_middle]*self.delta_phi)
-                        
-            if n >= self.Nequilibrate and averagePotential == True:
-                V_average += V_total
-            if n >= self.Nequilibrate and averageEnergy == True:
-                E_average += E_total
-            if n >= self.Nequilibrate and orientationalCorrelations == True:
-                eiej_corr += eiej
                 
             # Determing if we should be sampling the swapped or unswapped distribution
-            if swapped:
-                if V_unswapped < V_swapped:
-                    swapped = False
-                else:
-                    prob = np.exp(-self.beta*(V_unswapped-V_swapped))
-                    if np.random.uniform() < prob:
-                        swapped = False
-            else:
-                if V_swapped < V_unswapped:
-                    swapped = True
-                else:
-                    prob = np.exp(-self.beta*(V_swapped-V_unswapped))
-                    if np.random.uniform() < prob:
-                        swapped = True  
+            # This needs to be fixed
+            # if swapped:
+            #     if V_unswapped < V_swapped:
+            #         swapped = False
+            #     else:
+            #         prob = np.exp(-self.beta*(V_unswapped-V_swapped))
+            #         if np.random.uniform() < prob:
+            #             swapped = False
+            # else:
+            #     if V_swapped < V_unswapped:
+            #         swapped = True
+            #     else:
+            #         prob = np.exp(-self.beta*(V_swapped-V_unswapped))
+            #         if np.random.uniform() < prob:
+            #             swapped = True  
         traj_out.close()
         
         
         self.S2 = -np.log(N_swapped/N_unswapped)
-        
-        if averagePotential == True:
-            print('<V> = ',V_average/(self.MC_steps-self.Nequilibrate)/self.N)
-            self.V_MC = V_average/(self.MC_steps-self.Nequilibrate)/self.N
-        if averageEnergy == True:
-            print('<E> = ',E_average/(self.MC_steps-self.Nequilibrate)/2./self.N)
-            self.E_MC = E_average/(self.MC_steps-self.Nequilibrate)/2./self.N
-        if orientationalCorrelations == True:
-            print('<ei.ej> = ',eiej_corr/(self.MC_steps-self.Nequilibrate)/self.N)
-            self.eiej_MC = eiej_corr/(self.MC_steps-self.Nequilibrate)/self.N
+        print('S2 = ', str(self.S2))
 
         self.histo = np.zeros((self.Ngrid,6))
         histo_out=open(os.path.join(self.path,'histo_A_P'+str(self.P)+'_N'+str(self.N)),'w')
         for i in range(self.Ngrid):
-          histo_out.write(str(i*self.delta_phi) + ' ' +
-                          str(histo_pimc[i]/(self.MC_steps*self.N*self.P)/self.delta_phi) + ' ' +
-                          str(histo_middle[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                          str(histo_L[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                          str(histo_R[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                          str(histo_initial[i]/(self.N*self.P)/self.delta_phi)+'\n')
-          self.histo[i,:] = [i*self.delta_phi, 
-                            histo_pimc[i]/(self.MC_steps*self.N*self.P)/self.delta_phi,
-                            histo_middle[i]/(self.MC_steps*self.N)/self.delta_phi,
-                            histo_L[i]/(self.MC_steps*self.N)/self.delta_phi,
-                            histo_R[i]/(self.MC_steps*self.N)/self.delta_phi,
-                            histo_initial[i]/(self.N*self.P)/self.delta_phi]
+            histo_out.write(str(i*self.delta_phi) + ' ' +
+                            str(histo_pimc[i]/(self.MC_steps*self.N*self.P)/self.delta_phi) + ' ' +
+                            str(histo_middle[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
+                            str(histo_L[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
+                            str(histo_R[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
+                            str(histo_initial[i]/(self.N*self.P)/self.delta_phi)+'\n')
+            self.histo[i,:] = [i*self.delta_phi, 
+                              histo_pimc[i]/(self.MC_steps*self.N*self.P)/self.delta_phi,
+                              histo_middle[i]/(self.MC_steps*self.N)/self.delta_phi,
+                              histo_L[i]/(self.MC_steps*self.N)/self.delta_phi,
+                              histo_R[i]/(self.MC_steps*self.N)/self.delta_phi,
+                              histo_initial[i]/(self.N*self.P)/self.delta_phi]
           
         histo_out.close()
         
