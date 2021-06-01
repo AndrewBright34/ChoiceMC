@@ -19,8 +19,8 @@ except FileExistsError:
     pass
 os.chdir(path)
 
-# Making a folder to store the individual data from each data point
-data_path = os.path.join(path, "Individual_Data")
+# Making a folder to store the individual results from each data point
+data_path = os.path.join(path, "Individual_Results")
 try:
     os.mkdir(data_path)
 except FileExistsError:
@@ -36,8 +36,13 @@ mMax_sweep_dict_E = {}
 mMax_sweep_dict_V = {}
 mMax_sweep_dict_O = {}
 
+time_arr = np.zeros((len(N_sweep)*len(mMax_sweep),3))
+time_out = open(os.path.join(data_path,'Time_Ngrid.dat'),'w')
+time_out.write('mMax' + ' ' + 'N' + ' ' + 'Time(s)' + '\n')
+t0 = time.time()
+
 # Performing the sweep over mMax
-for mMax in mMax_sweep:
+for imMax, mMax in enumerate(mMax_sweep):
     print("------------------------------------------------")
     print("Starting m_max = " + str(mMax))
     # Creating dictionaries to store the results from the g and N sweep
@@ -59,6 +64,10 @@ for mMax in mMax_sweep:
         for ig, g in enumerate(g_sweep):
             print("------------------------------------------------")
             print("Starting g = " + str(g))
+            
+            if ig == 0:
+                t0 = time.time()
+            
             # Creating a ChoiceMC object for the current iteration
             PIMC = ChoiceMC(m_max=mMax, P=9, g=g, MC_steps=10000, N=N, PIGS=True, Nskip=100, Nequilibrate=100)
             
@@ -71,6 +80,11 @@ for mMax in mMax_sweep:
             # Performing MC integration
             PIMC.runMC()
             
+            if ig == 0:
+                MCtime = time.time()-t0
+                time_out.write(str(mMax) + ' ' + str(N) + ' ' + str(MCtime) + '\n')
+                time_arr[(imMax*len(mMax_sweep)+iN),:] = [mMax, N, MCtime]
+                
             # Saving plots of the histograms
             PIMC.plotHisto('left', "middle", 'right')
             PIMC.plotHisto('PIMC')
@@ -157,7 +171,9 @@ for mMax in mMax_sweep:
     mMax_sweep_dict_E.update({mMax: N_sweep_dict_E})
     mMax_sweep_dict_V.update({mMax: N_sweep_dict_V})
     mMax_sweep_dict_O.update({mMax: N_sweep_dict_O})
-    
+
+time_out.close()
+
 # Plotting E, V and O versus g for a fixed number of rotors and varied mMax
 for N in N_sweep:
     E_fig, E_ax = plt.subplots(1, 1, figsize=(8,5))
@@ -191,6 +207,32 @@ for N in N_sweep:
     O_ax.legend()
     O_fig.tight_layout()
     O_fig.savefig("mMaxSweep_OrientationalCorrelation_N" + str(N) + ".png")
+
+# Plotting the simulation time with varied mMax
+numRows = int(np.ceil(len(N_sweep)/3))
+t_fig = plt.figure(figsize=(10,4*numRows))
+for iN, N in enumerate(N_sweep):
+    t_ax = t_fig.add_subplot(numRows, 3, iN+1)
+    t_ax.plot(time_arr[time_arr[:,1] == N][:,0], time_arr[time_arr[:,1] == N][:,2])
+    t_ax.set_xlabel('mMax')
+    t_ax.set_ylabel('Time (seconds)')
+    t_ax.set_title('N = ' + str(N))
+t_fig.suptitle("Simulation Time versus mMax for a Varied Number of Rotors")
+t_fig.tight_layout()
+t_fig.savefig("mMaxSweep_Timing.png")
+
+# Plotting the simulation time with varied mMax
+numRows = int(np.ceil(len(mMax_sweep)/3))
+t_fig = plt.figure(figsize=(10,4*numRows))
+for imMax, mMax in enumerate(mMax_sweep):
+    t_ax = t_fig.add_subplot(numRows, 3, imMax+1)
+    t_ax.plot(time_arr[time_arr[:,0] == mMax][:,1], time_arr[time_arr[:,0] == mMax][:,2])
+    t_ax.set_xlabel('Number of Rotors')
+    t_ax.set_ylabel('Time (seconds)')
+    t_ax.set_title('mMax = ' + str(mMax))
+t_fig.suptitle("Simulation Time versus the Number of Rotors for a Varied mMax")
+t_fig.tight_layout()
+t_fig.savefig("NSweep_Timing.png")
 
 plt.close("all")
 
