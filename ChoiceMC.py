@@ -730,11 +730,17 @@ class ChoiceMC(object):
         histo_pimc=np.zeros(self.Ngrid,float)
         histo_initial=np.zeros(self.Ngrid,float)
         
+        #############################################################
+        # Add check for even number of rotors, if the ratio trick isn't being employed
+        
         if not hasattr(self, 'rho_phi'):
             self.createFreeRhoMarx()
             
         if not hasattr(self, 'rhoVij'):
             self.createRhoVij()
+        
+        if not self.PIGS:
+            raise Exception("PIGS must be enabled to run runMCReplica, please create a choiceMC object with this enabled")
         
         p_dist=gen_prob_dist(self.Ngrid, self.rho_phi)
         p_dist_end=gen_prob_dist_end(self.Ngrid, self.rho_phi)
@@ -758,11 +764,18 @@ class ChoiceMC(object):
         
         print('start MC')
         
-        # Entanglement
+        # Counter for the number of MC steps in the swapped and unswapped configuration
         N_swapped = 0
         N_unswapped = 0
         swapped = False
+        
+        # Index of the partition in the chain
+        N_partition = self.N // 2
+        
+        # Creating a replica of the original path
         path_phi_replica = path_phi.copy()
+        
+        # The indeces of the beads in the middle and to the left of the middle of the chain
         P_middle = int((self.P-1)/2)
         P_midLeft = P_middle - 1
         
@@ -777,8 +790,8 @@ class ChoiceMC(object):
             rhoSwapped=0.
             rhoUnswapped=0.
             
-            # This needs to be divided into the A and B partition, only the A
-            # partition should be involved in the swapping and unswapping
+            # As the rotors are looped through, the only ones that can partake in the swapped/unswapped
+            # configuration are the rotors in the "A" partition
             for i in range(self.N):
                 for p in range(self.P): 
                     p_minus=p-1
@@ -788,39 +801,36 @@ class ChoiceMC(object):
                     if (p_plus>=self.P):
                         p_plus-=self.P  
                     
-                    if self.PIGS==True:
-                        # kinetic action
-                        if p==0:
-                            # Special case on the left end of the chain
-                            for ip in range(self.Ngrid):
-                                prob_full[ip]=p_dist_end[ip,path_phi[i,p_plus]]
-                                prob_full_replica[ip]=p_dist_end[ip,path_phi_replica[i,p_plus]]
-                        elif p==(self.P-1):
-                            # Special case on the right end of the chain
-                            for ip in range(self.Ngrid):
-                                prob_full[ip]=p_dist_end[path_phi[i,p_minus],ip]
-                                prob_full_replica[ip]=p_dist_end[path_phi_replica[i,p_minus],ip]
-                        elif (p==P_midLeft) and swapped:
-                            # Special case for extended ensemble on the bead from the middle left
-                            for ip in range(self.Ngrid):
-                                prob_full[ip]=p_dist[path_phi[i,p_minus],ip,path_phi_replica[i,p_plus]]
-                                prob_full_replica[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi[i,p_plus]]
-                        elif (p==P_middle) and swapped:
-                            # Special case for extended ensemble on the middle bead
-                            for ip in range(self.Ngrid):
-                                prob_full[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi[i,p_plus]]
-                                prob_full_replica[ip]=p_dist[path_phi[i,p_minus],ip,path_phi_replica[i,p_plus]]
-                        elif (p!=0 and p!=(self.P-1)):
-                            # Interactions for non-swapped and non-end beads
-                            for ip in range(self.Ngrid):
-                                prob_full[ip]=p_dist[path_phi[i,p_minus],ip,path_phi[i,p_plus]]
-                                prob_full_replica[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi_replica[i,p_plus]]
-                    else:
+                    # kinetic action
+                    if p==0:
+                        # Special case on the left end of the chain
                         for ip in range(self.Ngrid):
-                            prob_full[ip]=p_dist[path_phi[i,p_minus],ip,path_phi[i,p_plus]]                         
+                            prob_full[ip]=p_dist_end[ip,path_phi[i,p_plus]]
+                            prob_full_replica[ip]=p_dist_end[ip,path_phi_replica[i,p_plus]]
+                    elif p==(self.P-1):
+                        # Special case on the right end of the chain
+                        for ip in range(self.Ngrid):
+                            prob_full[ip]=p_dist_end[path_phi[i,p_minus],ip]
+                            prob_full_replica[ip]=p_dist_end[path_phi_replica[i,p_minus],ip]
+                    elif (p==P_midLeft) and swapped and i < N_partition:
+                        # Special case for extended ensemble for the bead to the left of the middle
+                        # This only applies to the "A" partition
+                        for ip in range(self.Ngrid):
+                            prob_full[ip]=p_dist[path_phi[i,p_minus],ip,path_phi_replica[i,p_plus]]
+                            prob_full_replica[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi[i,p_plus]]
+                    elif (p==P_middle) and swapped and i < N_partition:
+                        # Special case for extended ensemble on the middle bead
+                        # This only applies to the "A" partition
+                        for ip in range(self.Ngrid):
+                            prob_full[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi[i,p_plus]]
+                            prob_full_replica[ip]=p_dist[path_phi[i,p_minus],ip,path_phi_replica[i,p_plus]]
+                    elif (p!=0 and p!=(self.P-1)):
+                        # Interactions for non-swapped and non-end beads
+                        for ip in range(self.Ngrid):
+                            prob_full[ip]=p_dist[path_phi[i,p_minus],ip,path_phi[i,p_plus]]
                             prob_full_replica[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi_replica[i,p_plus]]                         
                     
-                    # Local on site interaction with the potential field
+                    # Local on site interaction with the external potential field
                     if self.V0 != 0.:
                         for ip in range(self.Ngrid):
                            prob_full[ip]*=self.rhoV[ip]
@@ -829,7 +839,8 @@ class ChoiceMC(object):
                     # NN interactions and PBC(periodic boundary conditions)
                     if (i<(self.N-1)):
                         # Interaction with right neighbour
-                        if (p==P_middle) and swapped:
+                        if (p==P_middle) and swapped and i < N_partition:
+                            # Applies only to the middle bead in the "A" partition
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi_replica[i+1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi[i+1,p]]
@@ -839,7 +850,8 @@ class ChoiceMC(object):
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[i+1,p]]
                     elif (i>0):
                         # Interaction with left neighbour
-                        if (p==P_middle) and swapped:
+                        if (p==P_middle) and swapped and i < N_partition:
+                            # Applies only to the middle bead in the "A" partition
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi_replica[i-1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
@@ -848,8 +860,9 @@ class ChoiceMC(object):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[i-1,p]] 
                     elif (i==0):
-                        # Periodic BC for the left rotor
+                        # Periodic BC for the leftmost rotor
                         if (p==P_middle) and swapped:
+                            # This rotor will always be in the "A" partition
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi_replica[self.N-1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
@@ -858,15 +871,12 @@ class ChoiceMC(object):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[self.N-1,p]]
                     elif (i==(self.N-1)):
-                        # Periodic BC for the right rotor
-                        if (p==P_middle) and swapped:
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij[ir,path_phi_replica[0,p]]
-                                prob_full_replica[ir]*=self.rhoVij[ir,path_phi[0,p]]
-                        else:
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
-                                prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[0,p]]
+                        # Periodic BC for the rightmost rotor
+                        # Note, we don't care about the swapped/unswapped in this scenario since the rightmost rotor
+                        # will always be in the "B" partition
+                        for ir in range(len(prob_full)):
+                            prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
+                            prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[0,p]]
         
                     #normalize
                     norm_pro=0.
@@ -879,6 +889,7 @@ class ChoiceMC(object):
                         prob_full_replica[ir]/=norm_pro_replica
                     index=rng.choice(self.Ngrid,1, p=prob_full)
                     index_replica=rng.choice(self.Ngrid,1, p=prob_full_replica)
+                    
                     # Rejection free sampling
                     path_phi[i,p] = index
                     path_phi_replica[i,p] = index_replica
