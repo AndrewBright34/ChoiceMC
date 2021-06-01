@@ -159,7 +159,7 @@ class ChoiceMC(object):
         self.N = N
         
         # Creating a folder to save the output data
-        self.path = os.path.join(os.getcwd(), "ChoiceMC_P" + str(P) + "_N" + str(N) + "_g" + str(round(g,3)) + "_MCSteps" + str(MC_steps)+"_V"+str(V0))
+        self.path = os.path.join(os.getcwd(), "ChoiceMC_P" + str(P) + "_N" + str(N) + "_g" + str(round(g,3)) + "_MCSteps" + str(MC_steps)+"_V" + str(V0) + "_mMax" + str(m_max))
         try:
             os.mkdir(self.path)
         except FileExistsError:

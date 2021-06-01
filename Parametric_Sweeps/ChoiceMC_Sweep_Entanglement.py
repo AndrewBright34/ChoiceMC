@@ -1,4 +1,10 @@
-from ChoiceMC import ChoiceMC
+# Importing the ChoiceMC class, this structure should be improved
+import sys
+try:
+    from ChoiceMC import ChoiceMC
+except ModuleNotFoundError:
+    sys.path.append('..')
+    from ChoiceMC import ChoiceMC
 import matplotlib.pyplot as plt
 import time
 import numpy as np
