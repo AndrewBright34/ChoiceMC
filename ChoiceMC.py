@@ -55,7 +55,6 @@ def gen_prob_dist(Ng,rho_phi):
                 p[i0,i1,i2]=p[i0,i1,i2]/P_norm[i0,i2]
     return p
 
-
 def gen_prob_dist_end(Ng,rho_phi):
     p = np.zeros((Ng, Ng),float)
     # Normalize:
@@ -692,8 +691,8 @@ class ChoiceMC(object):
                             histo_R[i]/(self.MC_steps*self.N)/self.delta_phi,
                             histo_initial[i]/(self.N*self.P)/self.delta_phi]
           
-        histo_out.close()
-        
+        histo_out.close()                
+    
     def runMCReplica(self):
         """
         Performs the monte carlo integration to simulate the system with entanglement considered. This employs
@@ -786,9 +785,6 @@ class ChoiceMC(object):
             # Entanglement estimators
             N_swapped += swapped
             N_unswapped += (not swapped)
-            # Metropolis critereon
-            rhoSwapped=0.
-            rhoUnswapped=0.
             
             # As the rotors are looped through, the only ones that can partake in the swapped/unswapped
             # configuration are the rotors in the "A" partition
@@ -896,41 +892,6 @@ class ChoiceMC(object):
                     
                     histo_pimc[path_phi[i,p]]+=1.
                     
-                    
-                    ##################### FIX
-                    # Calculating the swapped and unswapped potentials
-                    # V_unswapped += self.potFunc(float(path_phi[i,p])*self.delta_phi,self.V0)
-                    # V_unswapped += self.potFunc(float(path_phi_replica[i,p])*self.delta_phi,self.V0)
-                    # V_swapped += self.potFunc(float(path_phi[i,p])*self.delta_phi,self.V0)
-                    # V_swapped += self.potFunc(float(path_phi_replica[i,p])*self.delta_phi,self.V0)
-                    # # Nearest neighbour interactions
-                    # if (i<(self.N-1)):
-                    #     V_phi = Vij(path_phi[i,p]*self.delta_phi, path_phi[i+1,p]*self.delta_phi, self.g)
-                    #     V_replica = Vij(path_phi_replica[i,p]*self.delta_phi, path_phi_replica[i+1,p]*self.delta_phi, self.g)
-                    #     if (p==P_middle):
-                    #         V_swapped += Vij(path_phi[i,p]*self.delta_phi, path_phi_replica[i+1,p]*self.delta_phi, self.g)
-                    #         V_swapped += Vij(path_phi_replica[i,p]*self.delta_phi, path_phi[i+1,p]*self.delta_phi, self.g)
-                    #         V_unswapped += V_phi
-                    #         V_unswapped += V_replica
-                    #     else:
-                    #         V_swapped += V_phi
-                    #         V_swapped += V_replica
-                    #         V_unswapped += V_phi
-                    #         V_unswapped += V_replica
-                    # elif (i==(self.N-1)):
-                    #     V_phi = Vij(path_phi[i,p]*self.delta_phi, path_phi[0,p]*self.delta_phi, self.g)
-                    #     V_replica = Vij(path_phi_replica[i,p]*self.delta_phi, path_phi_replica[0,p]*self.delta_phi, self.g)
-                    #     if (p==P_middle):
-                    #         V_swapped += Vij(path_phi[i,p]*self.delta_phi, path_phi_replica[0,p]*self.delta_phi, self.g)
-                    #         V_swapped += Vij(path_phi_replica[i,p]*self.delta_phi, path_phi[0,p]*self.delta_phi, self.g)
-                    #         V_unswapped += V_phi
-                    #         V_unswapped += V_replica
-                    #     else:
-                    #         V_swapped += V_phi
-                    #         V_swapped += V_replica
-                    #         V_unswapped += V_phi
-                    #         V_unswapped += V_replica         
-                    
                 if (n%self.Nskip==0):
                     traj_out.write(str(path_phi[i,0]*self.delta_phi)+' ')
                     traj_out.write(str(path_phi[i,self.P-1]*self.delta_phi)+' ')
@@ -940,23 +901,63 @@ class ChoiceMC(object):
                 histo_L[path_phi[i,0]]+=1.
                 histo_R[path_phi[i,self.P-1]]+=1.
                 histo_middle[path_phi[i,P_middle]]+=1.
+            
+            # Metropolis critereon
+            # The interaction with the external potential field is ignored, as this will
+            # be the same for both the swapped and unswapped ensembles
+            rhoUnswapped = 1.
+            rhoSwapped = 1.
+            # We only care about the A partition, as no swapping occurs in B
+            # Also, the only beads that participate in the swapping and unswapping are
+            # the beads at the middle and to the left of the middle, so these are the only that matter
+            for i in range(N_partition):
+                # Kinetic action, middle bead (unswapped)
+                rhoUnswapped *= p_dist[path_phi[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
+                rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
+                # Kinetic action, bead to the left of the middle (unswapped)
+                rhoUnswapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi[i,P_middle]]
+                rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
+                # Kinetic action, middle bead (swapped)
+                rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
+                rhoSwapped *= p_dist[path_phi[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
+                # Kinetic action, bead to the left of the middle (swapped)
+                rhoSwapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
+                rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
                 
+                # Potential contribution, this only impacts the middle bead
+                if (i<(self.N-1)):
+                    # Interaction with right neighbour
+                    rhoUnswapped *= self.rhoVij[path_phi[i,P_middle],path_phi[i+1,P_middle]]
+                    rhoUnswapped *= self.rhoVij[path_phi_replica[i,P_middle],path_phi_replica[i+1,P_middle]]
+                    rhoSwapped *= self.rhoVij[path_phi_replica[i,P_middle],path_phi[i+1,P_middle]]
+                    rhoSwapped *= self.rhoVij[path_phi[i,P_middle],path_phi_replica[i+1,P_middle]]
+                if (i>0):
+                    # Interaction with left neighbour
+                    rhoUnswapped *= self.rhoVij[path_phi[i-1,P_middle],path_phi[i,P_middle]]
+                    rhoUnswapped *= self.rhoVij[path_phi_replica[i-1,P_middle],path_phi_replica[i,P_middle]]
+                    rhoSwapped *= self.rhoVij[path_phi_replica[i-1,P_middle],path_phi[i,P_middle]]
+                    rhoSwapped *= self.rhoVij[path_phi[i-1,P_middle],path_phi_replica[i,P_middle]] 
+                if (i==0):
+                    # Periodic BC for the leftmost rotor
+                    rhoUnswapped *= self.rhoVij[path_phi[self.N-1,P_middle],path_phi[i,P_middle]]
+                    rhoUnswapped *= self.rhoVij[path_phi_replica[self.N-1,P_middle],path_phi_replica[i,P_middle]]
+                    rhoSwapped *= self.rhoVij[path_phi_replica[self.N-1,P_middle],path_phi[i,P_middle]]
+                    rhoSwapped *= self.rhoVij[path_phi[self.N-1,P_middle],path_phi_replica[i,P_middle]]
+                    
             # Determing if we should be sampling the swapped or unswapped distribution
-            # This needs to be fixed
-            # if swapped:
-            #     if V_unswapped < V_swapped:
-            #         swapped = False
-            #     else:
-            #         prob = np.exp(-self.beta*(V_unswapped-V_swapped))
-            #         if np.random.uniform() < prob:
-            #             swapped = False
-            # else:
-            #     if V_swapped < V_unswapped:
-            #         swapped = True
-            #     else:
-            #         prob = np.exp(-self.beta*(V_swapped-V_unswapped))
-            #         if np.random.uniform() < prob:
-            #             swapped = True  
+            if swapped:
+                ratio = rhoUnswapped/rhoSwapped
+                if ratio > 1:
+                    swapped = False
+                elif ratio > np.random.uniform():
+                    swapped = False
+            elif not swapped:
+                ratio = rhoSwapped/rhoUnswapped
+                if ratio > 1:
+                    swapped = True
+                elif ratio > np.random.uniform():
+                    swapped = True  
+            
         traj_out.close()
         
         
