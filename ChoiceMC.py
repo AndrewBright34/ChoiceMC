@@ -593,15 +593,15 @@ class ChoiceMC(object):
                         # Interaction with the rotor to the right
                         for ir in range(len(prob_full)):
                             prob_full[ir]*=self.rhoVij[ir,path_phi[i+1,p]]
-                    elif (i>0):
+                    if (i>0):
                         # Interaction with the rotor to the left
                         for ir in range(len(prob_full)):
                             prob_full[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
-                    elif (i==0):
+                    if (i==0):
                         # Periodic BC for the leftmost rotor
                         for ir in range(len(prob_full)):
                             prob_full[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
-                    elif (i==(self.N-1)):
+                    if (i==(self.N-1)):
                         # Periodic BC for the rightmost rotor
                         for ir in range(len(prob_full)):
                             prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
@@ -837,7 +837,7 @@ class ChoiceMC(object):
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[i+1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[i+1,p]]
-                    elif (i>0):
+                    if (i>0):
                         # Interaction with left neighbour
                         if (p==P_middle) and swapped:
                             for ir in range(len(prob_full)):
@@ -847,7 +847,7 @@ class ChoiceMC(object):
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[i-1,p]] 
-                    elif (i==0):
+                    if (i==0):
                         # Periodic BC for the left rotor
                         if (p==P_middle) and swapped:
                             for ir in range(len(prob_full)):
@@ -857,7 +857,7 @@ class ChoiceMC(object):
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[self.N-1,p]]
-                    elif (i==(self.N-1)):
+                    if (i==(self.N-1)):
                         # Periodic BC for the right rotor
                         if (p==P_middle) and swapped:
                             for ir in range(len(prob_full)):
