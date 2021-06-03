@@ -903,6 +903,10 @@ class ChoiceMC(object):
                 histo_middle[path_phi[i,P_middle]]+=1.
             
             # Metropolis critereon
+            
+            ######################################################
+            # This needs to be double checked for double counting
+            
             # The interaction with the external potential field is ignored, as this will
             # be the same for both the swapped and unswapped ensembles
             rhoUnswapped = 1.
@@ -915,28 +919,27 @@ class ChoiceMC(object):
                 rhoUnswapped *= p_dist[path_phi[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
                 rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
                 # Kinetic action, bead to the left of the middle (unswapped)
-                rhoUnswapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi[i,P_middle]]
-                rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
+                # rhoUnswapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi[i,P_middle]]
+                # rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
                 # Kinetic action, middle bead (swapped)
                 rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
                 rhoSwapped *= p_dist[path_phi[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
                 # Kinetic action, bead to the left of the middle (swapped)
-                rhoSwapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
-                rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
+                # rhoSwapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
+                # rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
                 
                 # Potential contribution, this only impacts the middle bead
-                if (i<(self.N-1)):
-                    # Interaction with right neighbour
-                    rhoUnswapped *= self.rhoVij[path_phi[i,P_middle],path_phi[i+1,P_middle]]
-                    rhoUnswapped *= self.rhoVij[path_phi_replica[i,P_middle],path_phi_replica[i+1,P_middle]]
-                    rhoSwapped *= self.rhoVij[path_phi_replica[i,P_middle],path_phi[i+1,P_middle]]
-                    rhoSwapped *= self.rhoVij[path_phi[i,P_middle],path_phi_replica[i+1,P_middle]]
-                if (i>0):
-                    # Interaction with left neighbour
-                    rhoUnswapped *= self.rhoVij[path_phi[i-1,P_middle],path_phi[i,P_middle]]
-                    rhoUnswapped *= self.rhoVij[path_phi_replica[i-1,P_middle],path_phi_replica[i,P_middle]]
-                    rhoSwapped *= self.rhoVij[path_phi_replica[i-1,P_middle],path_phi[i,P_middle]]
-                    rhoSwapped *= self.rhoVij[path_phi[i-1,P_middle],path_phi_replica[i,P_middle]] 
+                # Interaction with right neighbour
+                rhoUnswapped *= self.rhoVij[path_phi[i,P_middle],path_phi[i+1,P_middle]]
+                rhoUnswapped *= self.rhoVij[path_phi_replica[i,P_middle],path_phi_replica[i+1,P_middle]]
+                rhoSwapped *= self.rhoVij[path_phi_replica[i,P_middle],path_phi[i+1,P_middle]]
+                rhoSwapped *= self.rhoVij[path_phi[i,P_middle],path_phi_replica[i+1,P_middle]]
+                # if (i>0):
+                #     # Interaction with left neighbour
+                #     rhoUnswapped *= self.rhoVij[path_phi[i-1,P_middle],path_phi[i,P_middle]]
+                #     rhoUnswapped *= self.rhoVij[path_phi_replica[i-1,P_middle],path_phi_replica[i,P_middle]]
+                #     rhoSwapped *= self.rhoVij[path_phi_replica[i-1,P_middle],path_phi[i,P_middle]]
+                #     rhoSwapped *= self.rhoVij[path_phi[i-1,P_middle],path_phi_replica[i,P_middle]] 
                 if (i==0):
                     # Periodic BC for the leftmost rotor
                     rhoUnswapped *= self.rhoVij[path_phi[self.N-1,P_middle],path_phi[i,P_middle]]
