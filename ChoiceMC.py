@@ -833,10 +833,11 @@ class ChoiceMC(object):
                            prob_full_replica[ip]*=self.rhoV[ip]
                        
                     # NN interactions and PBC(periodic boundary conditions)
+                    
                     if (i<(self.N-1)):
                         # Interaction with right neighbour
-                        if (p==P_middle) and swapped and i < N_partition:
-                            # Applies only to the middle bead in the "A" partition
+                        if (p==P_middle) and swapped and i == (N_partition-1):
+                            # Swaps the right interaction for the middle bead of the rotor at the partition on the A side
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi_replica[i+1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi[i+1,p]]
@@ -846,8 +847,8 @@ class ChoiceMC(object):
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[i+1,p]]
                     if (i>0):
                         # Interaction with left neighbour
-                        if (p==P_middle) and swapped and i < N_partition:
-                            # Applies only to the middle bead in the "A" partition
+                        if (p==P_middle) and swapped and i == N_partition:
+                            # Swaps the left interaction for the middle bead of the rotor at the partition on the B side
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi_replica[i-1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
@@ -858,7 +859,7 @@ class ChoiceMC(object):
                     if (i==0):
                         # Periodic BC for the leftmost rotor
                         if (p==P_middle) and swapped:
-                            # This rotor will always be in the "A" partition
+                            # Swaps the left interaction for the middle bead of the leftmost rotor
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi_replica[self.N-1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
@@ -868,11 +869,15 @@ class ChoiceMC(object):
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[self.N-1,p]]
                     if (i==(self.N-1)):
                         # Periodic BC for the rightmost rotor
-                        # Note, we don't care about the swapped/unswapped in this scenario since the rightmost rotor
-                        # will always be in the "B" partition
-                        for ir in range(len(prob_full)):
-                            prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
-                            prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[0,p]]
+                        if (p==P_middle) and swapped:
+                            # Swaps the left interaction for the middle bead of the rightmost rotor
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij[ir,path_phi_replica[0,p]]
+                                prob_full_replica[ir]*=self.rhoVij[ir,path_phi[0,p]]
+                        else:
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
+                                prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[0,p]]
         
                     #normalize
                     norm_pro=0.
@@ -909,43 +914,38 @@ class ChoiceMC(object):
             
             # The interaction with the external potential field is ignored, as this will
             # be the same for both the swapped and unswapped ensembles
+            # Any unchanged interactions (kinetic or potential) between the swapped and
+            # unswapped configurations are not calculated
+            
             rhoUnswapped = 1.
             rhoSwapped = 1.
-            # We only care about the A partition, as no swapping occurs in B
-            # Also, the only beads that participate in the swapping and unswapping are
-            # the beads at the middle and to the left of the middle, so these are the only that matter
+            
+            # Kinetic contribution from the swapped interactions in the A partition
+            ##########################################################
+            # This needs to be double checked, should this be multiplying the middle and midleft bead?
             for i in range(N_partition):
-                # Kinetic action, middle bead (unswapped)
+                # Middle bead
                 rhoUnswapped *= p_dist[path_phi[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
                 rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
-                # Kinetic action, bead to the left of the middle (unswapped)
-                # rhoUnswapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi[i,P_middle]]
-                # rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
-                # Kinetic action, middle bead (swapped)
                 rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
                 rhoSwapped *= p_dist[path_phi[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
-                # Kinetic action, bead to the left of the middle (swapped)
-                # rhoSwapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
-                # rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
+                # Bead to the left of the middle
+                rhoUnswapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi[i,P_middle]]
+                rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
+                rhoSwapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
+                rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
                 
-                # Potential contribution, this only impacts the middle bead
-                # Interaction with right neighbour
-                rhoUnswapped *= self.rhoVij[path_phi[i,P_middle],path_phi[i+1,P_middle]]
-                rhoUnswapped *= self.rhoVij[path_phi_replica[i,P_middle],path_phi_replica[i+1,P_middle]]
-                rhoSwapped *= self.rhoVij[path_phi_replica[i,P_middle],path_phi[i+1,P_middle]]
-                rhoSwapped *= self.rhoVij[path_phi[i,P_middle],path_phi_replica[i+1,P_middle]]
-                # if (i>0):
-                #     # Interaction with left neighbour
-                #     rhoUnswapped *= self.rhoVij[path_phi[i-1,P_middle],path_phi[i,P_middle]]
-                #     rhoUnswapped *= self.rhoVij[path_phi_replica[i-1,P_middle],path_phi_replica[i,P_middle]]
-                #     rhoSwapped *= self.rhoVij[path_phi_replica[i-1,P_middle],path_phi[i,P_middle]]
-                #     rhoSwapped *= self.rhoVij[path_phi[i-1,P_middle],path_phi_replica[i,P_middle]] 
-                if (i==0):
-                    # Periodic BC for the leftmost rotor
-                    rhoUnswapped *= self.rhoVij[path_phi[self.N-1,P_middle],path_phi[i,P_middle]]
-                    rhoUnswapped *= self.rhoVij[path_phi_replica[self.N-1,P_middle],path_phi_replica[i,P_middle]]
-                    rhoSwapped *= self.rhoVij[path_phi_replica[self.N-1,P_middle],path_phi[i,P_middle]]
-                    rhoSwapped *= self.rhoVij[path_phi[self.N-1,P_middle],path_phi_replica[i,P_middle]]
+            # Potential contribution, this only impacts the middle bead
+            # Swapped interactions for the periodic BCs
+            rhoUnswapped *= self.rhoVij[path_phi[0,P_middle],path_phi[self.N-1,P_middle]]
+            rhoUnswapped *= self.rhoVij[path_phi_replica[0,P_middle],path_phi_replica[self.N-1,P_middle]]
+            rhoSwapped *= self.rhoVij[path_phi_replica[0,P_middle],path_phi[self.N-1,P_middle]]
+            rhoSwapped *= self.rhoVij[path_phi[0,P_middle],path_phi_replica[self.N-1,P_middle]]
+            # Swapped interactions at the partition between A and B
+            rhoUnswapped *= self.rhoVij[path_phi[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
+            rhoUnswapped *= self.rhoVij[path_phi_replica[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
+            rhoSwapped *= self.rhoVij[path_phi_replica[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
+            rhoSwapped *= self.rhoVij[path_phi[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
                     
             # Determing if we should be sampling the swapped or unswapped distribution
             if swapped:
