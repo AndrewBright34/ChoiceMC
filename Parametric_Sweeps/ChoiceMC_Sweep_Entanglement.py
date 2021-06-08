@@ -19,7 +19,7 @@ except FileExistsError:
 os.chdir(path)
 
 # Setting up the variables to sweep over
-g_sweep = np.linspace(0.01, 8, 20)
+g_sweep = np.linspace(0.01, 2, 10)
 N=4
     
 # Creating arrays to store the S2 versus g data

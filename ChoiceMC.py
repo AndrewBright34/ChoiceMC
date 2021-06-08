@@ -737,6 +737,8 @@ class ChoiceMC(object):
             
         if not hasattr(self, 'rhoVij'):
             self.createRhoVij()
+        # Creating a copy of RhoVij to account for half-interactions
+        rhoVij_half = np.exp(0.5)*self.rhoVij
         
         if not self.PIGS:
             raise Exception("PIGS must be enabled to run runMCReplica, please create a choiceMC object with this enabled")
@@ -832,15 +834,16 @@ class ChoiceMC(object):
                            prob_full[ip]*=self.rhoV[ip]
                            prob_full_replica[ip]*=self.rhoV[ip]
                        
-                    # NN interactions and PBC(periodic boundary conditions)
-                    
+                    # NN interactions and PBC(periodic boundary conditions)              
                     if (i<(self.N-1)):
                         # Interaction with right neighbour
                         if (p==P_middle) and swapped and i == (N_partition-1):
                             # Swaps the right interaction for the middle bead of the rotor at the partition on the A side
                             for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij[ir,path_phi_replica[i+1,p]]
-                                prob_full_replica[ir]*=self.rhoVij[ir,path_phi[i+1,p]]
+                                prob_full[ir]*=rhoVij_half[ir,path_phi[i+1,p]]
+                                prob_full[ir]*=rhoVij_half[ir,path_phi_replica[i+1,p]]
+                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi[i+1,p]]
+                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi_replica[i+1,p]]
                         else:
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[i+1,p]]
@@ -850,8 +853,10 @@ class ChoiceMC(object):
                         if (p==P_middle) and swapped and i == N_partition:
                             # Swaps the left interaction for the middle bead of the rotor at the partition on the B side
                             for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij[ir,path_phi_replica[i-1,p]]
-                                prob_full_replica[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
+                                prob_full[ir]*=rhoVij_half[ir,path_phi[i-1,p]]
+                                prob_full[ir]*=rhoVij_half[ir,path_phi_replica[i-1,p]]
+                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi[i-1,p]]
+                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi_replica[i-1,p]]
                         else:
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
@@ -861,8 +866,10 @@ class ChoiceMC(object):
                         if (p==P_middle) and swapped:
                             # Swaps the left interaction for the middle bead of the leftmost rotor
                             for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij[ir,path_phi_replica[self.N-1,p]]
-                                prob_full_replica[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
+                                prob_full[ir]*=rhoVij_half[ir,path_phi[self.N-1,p]]
+                                prob_full[ir]*=rhoVij_half[ir,path_phi_replica[self.N-1,p]]
+                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi[self.N-1,p]]
+                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi_replica[self.N-1,p]]
                         else:
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
@@ -872,8 +879,10 @@ class ChoiceMC(object):
                         if (p==P_middle) and swapped:
                             # Swaps the left interaction for the middle bead of the rightmost rotor
                             for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij[ir,path_phi_replica[0,p]]
-                                prob_full_replica[ir]*=self.rhoVij[ir,path_phi[0,p]]
+                                prob_full[ir]*=rhoVij_half[ir,path_phi[0,p]]
+                                prob_full[ir]*=rhoVij_half[ir,path_phi_replica[0,p]]
+                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi[0,p]]
+                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi_replica[0,p]]
                         else:
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
@@ -909,9 +918,6 @@ class ChoiceMC(object):
             
             # Metropolis critereon
             
-            ######################################################
-            # This needs to be double checked for double counting
-            
             # The interaction with the external potential field is ignored, as this will
             # be the same for both the swapped and unswapped ensembles
             # Any unchanged interactions (kinetic or potential) between the swapped and
@@ -924,28 +930,33 @@ class ChoiceMC(object):
             ##########################################################
             # This needs to be double checked, should this be multiplying the middle and midleft bead?
             for i in range(N_partition):
-                # Middle bead
-                rhoUnswapped *= p_dist[path_phi[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
-                rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
-                rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
-                rhoSwapped *= p_dist[path_phi[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
-                # Bead to the left of the middle
-                rhoUnswapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi[i,P_middle]]
-                rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
-                rhoSwapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
-                rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
+                # Using p_dist_end as we only care about the swapped probability
+                rhoUnswapped *= p_dist_end[path_phi[i,P_midLeft],path_phi[i,P_middle]]
+                rhoUnswapped *= p_dist_end[path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
+                rhoSwapped *= p_dist_end[path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
+                rhoSwapped *= p_dist_end[path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
+                # # Middle bead
+                # rhoUnswapped *= p_dist[path_phi[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
+                # rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
+                # rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
+                # rhoSwapped *= p_dist[path_phi[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
+                # # Bead to the left of the middle
+                # rhoUnswapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi[i,P_middle]]
+                # rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
+                # rhoSwapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
+                # rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
                 
             # Potential contribution, this only impacts the middle bead
-            # Swapped interactions for the periodic BCs
-            rhoUnswapped *= self.rhoVij[path_phi[0,P_middle],path_phi[self.N-1,P_middle]]
-            rhoUnswapped *= self.rhoVij[path_phi_replica[0,P_middle],path_phi_replica[self.N-1,P_middle]]
-            rhoSwapped *= self.rhoVij[path_phi_replica[0,P_middle],path_phi[self.N-1,P_middle]]
-            rhoSwapped *= self.rhoVij[path_phi[0,P_middle],path_phi_replica[self.N-1,P_middle]]
-            # Swapped interactions at the partition between A and B
-            rhoUnswapped *= self.rhoVij[path_phi[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
-            rhoUnswapped *= self.rhoVij[path_phi_replica[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
-            rhoSwapped *= self.rhoVij[path_phi_replica[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
-            rhoSwapped *= self.rhoVij[path_phi[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
+            # Interactions for the periodic BCs
+            rhoUnswapped *= rhoVij_half[path_phi[0,P_middle],path_phi[self.N-1,P_middle]]
+            rhoUnswapped *= rhoVij_half[path_phi_replica[0,P_middle],path_phi_replica[self.N-1,P_middle]]
+            rhoSwapped *= rhoVij_half[path_phi_replica[0,P_middle],path_phi[self.N-1,P_middle]]
+            rhoSwapped *= rhoVij_half[path_phi[0,P_middle],path_phi_replica[self.N-1,P_middle]]
+            # Interactions at the partition between A and B
+            rhoUnswapped *= rhoVij_half[path_phi[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
+            rhoUnswapped *= rhoVij_half[path_phi_replica[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
+            rhoSwapped *= rhoVij_half[path_phi_replica[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
+            rhoSwapped *= rhoVij_half[path_phi[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
                     
             # Determing if we should be sampling the swapped or unswapped distribution
             if swapped:
