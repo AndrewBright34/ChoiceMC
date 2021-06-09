@@ -34,6 +34,30 @@ def pot_matrix(size):
                 V_mat[m,mp]=.5
     return V_mat
 
+def pot_matrix_cos(size):
+    V_mat=np.zeros((size,size),float)
+    for m in range(size):
+        for mp in range(size):
+            if m==(mp+1):
+                V_mat[m,mp]=.5
+            if m==(mp-1):
+                V_mat[m,mp]=.5
+    return V_mat
+
+def pot_matrix_sin(size):
+    # This is the matrix divided by i
+    V_mat=np.zeros((size,size),float)
+    for m in range(size):
+        for mp in range(size):
+            # We don't know these
+            # These are the result of the math
+            # {[-1+exp(-i*2pi(m-mp))]/[(m-mp)^2-1]}/2pi
+            if m==(mp+1):
+                V_mat[m,mp]=.5
+            if m==(mp-1):
+                V_mat[m,mp]=-.5
+    return V_mat
+
 def gen_prob_dist(Ng,rho_phi):
     p = np.zeros((Ng, Ng, Ng),float)
     # Normalize:
@@ -167,6 +191,60 @@ class ChoiceMC(object):
         # Throwing a warning if the center bead will not be an integer value when pigs is enabled
         if self.P % 2 == 0 and self.PIGS:
             raise Warning("PIGS is enabled and an even number of beads was input, it is recommended to use an odd number")
+    
+    def exactDiagonalization(self):
+        '''
+        Performs exact diagonalization for 2 rotors and calculates the ground state
+        energy and orientational correlation. Warning, this method scales with Ngrid^2
+        and can become quickly intractable.
+
+        Returns
+        -------
+        self.E0_ED:float
+            The ground state energy calculated by exact diagonalization.
+        self.eiej_corr_ED: float
+            The orientational correlation calculated by exact diagonalization.
+
+        '''
+        # Throwing a warning if the MC object currently being tested does not have 2 rotors
+        if self.N != 2:
+            raise Warning("The exact diagonalization method can only handle 2 rotors and the current MC simulation is not being performed with 2 rotors.")
+        
+        # Unpacking variables from class
+        size = self.Ngrid
+        size2 = self.Ngrid**2
+        g = self.g
+        B = self.B
+        # Creating the cos and sin potential matrices
+        cos_mmp = pot_matrix_cos(size)
+        sin_mmp = pot_matrix_sin(size)
+        
+        # Creating the Hamiltonian
+        H = np.zeros((size2,size2), float)
+        for m1 in range(self.Ngrid):
+            for m2 in range(self.Ngrid):
+                for m1p in range(self.Ngrid):
+                    for m2p in range(self.Ngrid):
+                        if m1==m1p and m2==m2p:
+                            # Kinetic contribution
+                            H[m1*size + m2, m1p*size + m2p] += B * float(m1**2)
+                        # Potential contribution
+                        H[m1*size + m2, m1p*size + m2p] += g * (-1*sin_mmp[m1,m1p]*sin_mmp[m2,m2p] - 2*cos_mmp[m1,m1p]*cos_mmp[m2,m2p])
+        # Finding the eigenavalues and eigenvectors
+        evals, evecs = np.linalg.eigh(H)
+        # Evaluating the observables
+        E0 = evals[0]
+        e1_dot_e2 = 0.
+        for m1 in range(self.Ngrid):
+            for m2 in range(self.Ngrid):
+                for m1p in range(self.Ngrid):
+                    for m2p in range(self.Ngrid):
+                        e1_dot_e2 += evecs[m1*size + m2,0]*evecs[m1p*size + m2p,0]*(-1*sin_mmp[m1,m1p]*sin_mmp[m2,m2p] + cos_mmp[m1,m1p]*cos_mmp[m2,m2p])
+                        # <0|m1 m2> <m1 m2|e1.e2|m1p m2p> <m1p m2p|0> = <0|e1.e2|0>
+        self.E0_ED = E0
+        print('<ED E0> = ',self.ED_E0)
+        self.eiej_corr_ED = e1_dot_e2
+        print('<ei.ej> = ',self.ED_eiej_corr)
     
     def createFreeRhoMarx(self):
         """
@@ -351,7 +429,7 @@ class ChoiceMC(object):
             self.rho_sos[i,:] = [i * self.delta_phi, rho_exact, psi_phi[i,0]**2]
         rho_sos_out.close()
         self.rho_phi = self.rho_sos[:,1]
-        return self.rho_sos.copy()
+        return self.rho_sos.copy()    
     
     def createRhoNMM(self):
         """
@@ -756,8 +834,12 @@ class ChoiceMC(object):
                 #path_phi[i,p]=0
                 # Rotors have random angles
                 path_phi[i,p]=np.random.randint(self.Ngrid)
+                
                 histo_initial[path_phi[i,p]]+=1.
-            
+        
+        # Make monte carlo into a function, divide into equilibration and production    
+        
+        
         traj_out=open(os.path.join(self.path,'traj_A.dat'),'w')
         
         # recommanded numpy random number initialization
@@ -928,23 +1010,18 @@ class ChoiceMC(object):
             
             # Kinetic contribution from the swapped interactions in the A partition
             ##########################################################
-            # This needs to be double checked, should this be multiplying the middle and midleft bead?
+            # This needs to be double checked, should this be multiplying the middle and midleft bead or is this double counting?
             for i in range(N_partition):
-                # Using p_dist_end as we only care about the swapped probability
-                rhoUnswapped *= p_dist_end[path_phi[i,P_midLeft],path_phi[i,P_middle]]
-                rhoUnswapped *= p_dist_end[path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
-                rhoSwapped *= p_dist_end[path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
-                rhoSwapped *= p_dist_end[path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
-                # # Middle bead
-                # rhoUnswapped *= p_dist[path_phi[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
-                # rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
-                # rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
-                # rhoSwapped *= p_dist[path_phi[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
-                # # Bead to the left of the middle
-                # rhoUnswapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi[i,P_middle]]
-                # rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
-                # rhoSwapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
-                # rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
+                # Middle bead
+                rhoUnswapped *= p_dist[path_phi[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
+                rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
+                rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
+                rhoSwapped *= p_dist[path_phi[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
+                # Bead to the left of the middle
+                rhoUnswapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi[i,P_middle]]
+                rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
+                rhoSwapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
+                rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
                 
             # Potential contribution, this only impacts the middle bead
             # Interactions for the periodic BCs
@@ -977,7 +1054,7 @@ class ChoiceMC(object):
         
         self.S2 = -np.log(N_swapped/N_unswapped)
         print('S2 = ', str(self.S2))
-
+        
         self.histo = np.zeros((self.Ngrid,6))
         histo_out=open(os.path.join(self.path,'histo_A_P'+str(self.P)+'_N'+str(self.N)),'w')
         for i in range(self.Ngrid):
