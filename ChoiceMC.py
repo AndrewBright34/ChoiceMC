@@ -242,9 +242,9 @@ class ChoiceMC(object):
                         e1_dot_e2 += evecs[m1*size + m2,0]*evecs[m1p*size + m2p,0]*(-1*sin_mmp[m1,m1p]*sin_mmp[m2,m2p] + cos_mmp[m1,m1p]*cos_mmp[m2,m2p])
                         # <0|m1 m2> <m1 m2|e1.e2|m1p m2p> <m1p m2p|0> = <0|e1.e2|0>
         self.E0_ED = E0
-        print('<ED E0> = ',self.ED_E0)
-        self.eiej_corr_ED = e1_dot_e2
-        print('<ei.ej> = ',self.ED_eiej_corr)
+        print('<ED E0> = ',self.E0_ED)
+        self.eiej_ED = e1_dot_e2
+        print('<ei.ej> = ',self.eiej_ED)
     
     def createFreeRhoMarx(self):
         """
@@ -596,6 +596,9 @@ class ChoiceMC(object):
         if not hasattr(self, 'rhoVij'):
             self.createRhoVij()
         
+        if not self.PIGS:
+            averageEnergy = False
+        
         p_dist=gen_prob_dist(self.Ngrid, self.rho_phi)
         p_dist_end = gen_prob_dist_end(self.Ngrid, self.rho_phi) if self.PIGS == True else None
         
@@ -618,19 +621,15 @@ class ChoiceMC(object):
         
         print('start MC')
         
-        # Initializing the observables to be tracked
-        V_average = 0. if averagePotential == True else None
-        E_average = 0. if averageEnergy == True else None
-        eiej_corr = 0. if orientationalCorrelations == True else None
+        # Initializing the estimators, the method currently employed is only for pigs
+        V_arr = np.zeros(self.MC_steps,float) if averagePotential == True else None
+        E_arr = np.zeros(self.MC_steps,float) if averageEnergy == True else None
+        eiej_arr = np.zeros(self.MC_steps,float) if orientationalCorrelations == True else None
             
         P_middle = int((self.P-1)/2)
         prob_full=np.zeros(self.Ngrid,float)
         
         for n in range(self.MC_steps):
-            # Total and potential energy estimators
-            V_total=0.
-            E_total=0.
-            eiej=0.
             for i in range(self.N):
                 for p in range(self.P): 
                     p_minus=p-1
@@ -694,6 +693,40 @@ class ChoiceMC(object):
                     path_phi[i,p] = index
         
                     histo_pimc[path_phi[i,p]]+=1.
+                    
+                    # Updating the estimators, these only look at the interactions to the left to avoid
+                    # double counting and to ensure that the interactions being added are from the current MC Step
+                    if not self.PIGS or (p==P_middle):
+                        if n >= self.Nequilibrate and averagePotential == True:
+                            # External field
+                            V_arr[n] += self.potFunc(float(path_phi[i,p])*self.delta_phi,self.V0)
+                            # Nearest neighbour interactions
+                            if (i>0):
+                                # Only look at left neighbour to avoid double counting
+                                V_arr[n] += Vij(path_phi[i-1,p]*self.delta_phi, path_phi[i,p]*self.delta_phi, self.g)
+                                if (i==(self.N-1)):
+                                    # Periodic BCs
+                                    V_arr[n] += Vij(path_phi[i,p]*self.delta_phi, path_phi[0,p]*self.delta_phi, self.g)
+                        if n >= self.Nequilibrate and orientationalCorrelations == True:
+                            if (i>0):
+                                eiej_arr[n] += calculateOrientationalCorrelations(path_phi[i-1,p]*self.delta_phi, path_phi[i,p]*self.delta_phi)
+                                if (i==(self.N-1)):
+                                    eiej_arr[n] += calculateOrientationalCorrelations(path_phi[i,p]*self.delta_phi, path_phi[0,p]*self.delta_phi)
+                                    
+                # End of bead loop
+                
+                # Updating the ground state energy estimators for PIGS
+                if n >= self.Nequilibrate and averageEnergy == True:
+                    # External field
+                    E_arr[n] += self.potFunc(float(path_phi[i,0])*self.delta_phi,self.V0)
+                    E_arr[n] += self.potFunc(float(path_phi[i,self.P-1])*self.delta_phi,self.V0)
+                    # Nearest neighbour interactions, only looks at left neighbour to avoid double counting
+                    if (i>0):
+                        E_arr[n] += Vij(path_phi[i-1,0]*self.delta_phi, path_phi[i,0]*self.delta_phi, self.g)
+                        E_arr[n] += Vij(path_phi[i-1,self.P-1]*self.delta_phi, path_phi[i,self.P-1]*self.delta_phi, self.g)
+                        if (i==(self.N-1)):
+                            E_arr[n] += Vij(path_phi[i,0]*self.delta_phi, path_phi[0,0]*self.delta_phi, self.g)
+                            E_arr[n] += Vij(path_phi[i,self.P-1]*self.delta_phi, path_phi[0,self.P-1]*self.delta_phi, self.g)
                 
                 if (n%self.Nskip==0):
                     traj_out.write(str(path_phi[i,0]*self.delta_phi)+' ')
@@ -704,70 +737,54 @@ class ChoiceMC(object):
                 histo_L[path_phi[i,0]]+=1.
                 histo_R[path_phi[i,self.P-1]]+=1.
                 histo_middle[path_phi[i,P_middle]]+=1.
-                
-                if n >= self.Nequilibrate and averagePotential == True:
-                    # External field
-                    V_total += self.potFunc(float(path_phi[i,P_middle])*self.delta_phi,self.V0)
-                    # Nearest neighbour interactions
-                    if (i<(self.N-1)):
-                        # Double check and think more about this, we only look at right neighbour?
-                        V_total += Vij(path_phi[i,P_middle]*self.delta_phi, path_phi[i+1,P_middle]*self.delta_phi, self.g)
-                    elif (i==(self.N-1)):
-                        V_total += Vij(path_phi[i,P_middle]*self.delta_phi, path_phi[0,P_middle]*self.delta_phi, self.g)
-                    
-                if n >= self.Nequilibrate and averageEnergy == True:
-                    # External field
-                    E_total += self.potFunc(float(path_phi[i,0])*self.delta_phi,self.V0)
-                    E_total += self.potFunc(float(path_phi[i,self.P-1])*self.delta_phi,self.V0)
-                    # Nearest neighbour interactions
-                    if (i<(self.N-1)):
-                        # Double check and think more about this, we only look at right neighbour?
-                        E_total += Vij(path_phi[i,0]*self.delta_phi, path_phi[i+1,0]*self.delta_phi, self.g)
-                        E_total += Vij(path_phi[i,self.P-1]*self.delta_phi, path_phi[i+1,self.P-1]*self.delta_phi, self.g)
-                    elif (i==(self.N-1)):
-                        E_total += Vij(path_phi[i,0]*self.delta_phi, path_phi[0,0]*self.delta_phi, self.g)
-                        E_total += Vij(path_phi[i,self.P-1]*self.delta_phi, path_phi[0,self.P-1]*self.delta_phi, self.g)
-                
-                if n >= self.Nequilibrate and orientationalCorrelations == True:
-                    if (i<(self.N-1)):
-                        eiej += calculateOrientationalCorrelations(path_phi[i,P_middle]*self.delta_phi, path_phi[i+1,P_middle]*self.delta_phi)
-                    if (i==(self.N-1)):
-                        eiej += calculateOrientationalCorrelations(path_phi[i,P_middle]*self.delta_phi, path_phi[0,P_middle]*self.delta_phi)
-                        
-            if n >= self.Nequilibrate and averagePotential == True:
-                V_average += V_total
-            if n >= self.Nequilibrate and averageEnergy == True:
-                E_average += E_total
-            if n >= self.Nequilibrate and orientationalCorrelations == True:
-                eiej_corr += eiej
-                
+        # End of rotor loop
         traj_out.close()
         
         if averagePotential == True:
-            print('<V> = ',V_average/(self.MC_steps-self.Nequilibrate)/self.N)
-            self.V_MC = V_average/(self.MC_steps-self.Nequilibrate)/self.N
+            V_average = np.mean(V_arr[self.Nequilibrate:])/self.N
+            V_stdError = np.std(V_arr[self.Nequilibrate:])/np.sqrt(self.MC_steps-self.Nequilibrate)/self.N
+            if not self.PIGS:
+                V_average /= self.P
+                V_stdError /= self.P
+            print('<V> = ', V_average)
+            print('V_SE = ', V_stdError)
+            self.V_MC = V_average
+            self.V_stdError_MC = V_stdError
         if averageEnergy == True:
-            print('<E> = ',E_average/(self.MC_steps-self.Nequilibrate)/2./self.N)
-            self.E_MC = E_average/(self.MC_steps-self.Nequilibrate)/2./self.N
+            # Need to divide by two according to the PIGS formula
+            E_arr/=2
+            E_average = np.mean(E_arr[self.Nequilibrate:])/self.N
+            E_stdError = np.std(E_arr[self.Nequilibrate:])/np.sqrt(self.MC_steps-self.Nequilibrate)/self.N
+            print('E0 = ', E_average)
+            print('E0_SE = ', E_stdError)
+            self.E_MC = E_average
+            self.E_stdError_MC = E_stdError
         if orientationalCorrelations == True:
-            print('<ei.ej> = ',eiej_corr/(self.MC_steps-self.Nequilibrate)/self.N)
-            self.eiej_MC = eiej_corr/(self.MC_steps-self.Nequilibrate)/self.N
+            eiej_average = np.mean(eiej_arr[self.Nequilibrate:])/self.N
+            eiej_stdError = np.std(eiej_arr[self.Nequilibrate:])/np.sqrt(self.MC_steps-self.Nequilibrate)/self.N
+            if not self.PIGS:
+                eiej_average /= self.P
+                eiej_stdError /= self.P
+            print('<ei.ej> = ', eiej_average)
+            print('ei.ej_SE = ', eiej_stdError)
+            self.eiej_MC = eiej_average
+            self.eiej_stdError_MC = eiej_stdError
 
         self.histo = np.zeros((self.Ngrid,6))
         histo_out=open(os.path.join(self.path,'histo_A_P'+str(self.P)+'_N'+str(self.N)),'w')
         for i in range(self.Ngrid):
-          histo_out.write(str(i*self.delta_phi) + ' ' +
-                          str(histo_pimc[i]/(self.MC_steps*self.N*self.P)/self.delta_phi) + ' ' +
-                          str(histo_middle[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                          str(histo_L[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                          str(histo_R[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                          str(histo_initial[i]/(self.N*self.P)/self.delta_phi)+'\n')
-          self.histo[i,:] = [i*self.delta_phi, 
-                            histo_pimc[i]/(self.MC_steps*self.N*self.P)/self.delta_phi,
-                            histo_middle[i]/(self.MC_steps*self.N)/self.delta_phi,
-                            histo_L[i]/(self.MC_steps*self.N)/self.delta_phi,
-                            histo_R[i]/(self.MC_steps*self.N)/self.delta_phi,
-                            histo_initial[i]/(self.N*self.P)/self.delta_phi]
+            histo_out.write(str(i*self.delta_phi) + ' ' +
+                            str(histo_pimc[i]/(self.MC_steps*self.N*self.P)/self.delta_phi) + ' ' +
+                            str(histo_middle[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
+                            str(histo_L[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
+                            str(histo_R[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
+                            str(histo_initial[i]/(self.N*self.P)/self.delta_phi)+'\n')
+            self.histo[i,:] = [i*self.delta_phi, 
+                              histo_pimc[i]/(self.MC_steps*self.N*self.P)/self.delta_phi,
+                              histo_middle[i]/(self.MC_steps*self.N)/self.delta_phi,
+                              histo_L[i]/(self.MC_steps*self.N)/self.delta_phi,
+                              histo_R[i]/(self.MC_steps*self.N)/self.delta_phi,
+                              histo_initial[i]/(self.N*self.P)/self.delta_phi]
           
         histo_out.close()                
     
