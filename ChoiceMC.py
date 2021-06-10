@@ -106,7 +106,8 @@ def errorpropagation(mean, data):
     return error
 
 def maxError_byBinning(mean, data, workingNdim):
-    #error_message(workingNdim)
+    if(workingNdim<=1):
+        raise Exception('Not enough points MC steps were used for the binning method, please increase the number of MC steps')
     error = np.zeros(workingNdim)
     i = 0
     error[0] = errorpropagation(mean, data)
