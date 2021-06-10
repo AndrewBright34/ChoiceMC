@@ -1,4 +1,5 @@
 import numpy as np
+import math
 from numpy.random import default_rng
 import matplotlib.pyplot as plt
 import os
@@ -97,6 +98,29 @@ def gen_prob_dist_end(Ng,rho_phi):
 
 def calculateOrientationalCorrelations(p1, p2):
     return np.cos(p1-p2)
+
+# Functions for the binning error analysis
+def errorpropagation(mean, data):
+    ndim   = len(data)
+    error = np.std(data,ddof=0)/np.sqrt(ndim)
+    return error
+
+def maxError_byBinning(mean, data, workingNdim):
+    #error_message(workingNdim)
+    error = np.zeros(workingNdim)
+    i = 0
+    error[0] = errorpropagation(mean, data)
+
+    for i in range(1,workingNdim):
+        ndim = int(len(data)/2)
+        data1 = np.zeros(ndim)
+
+        for j in range(ndim):
+            data1[j] = 0.5*(data[2*j]+data[2*j+1])
+        data = data1
+        error[i] = errorpropagation(mean,data)
+    return np.max(error)
+
 
 class ChoiceMC(object):
     def __init__(self, m_max, P, g, MC_steps, N, Nskip=100, Nequilibrate=0, PIGS=False, T=1, B=1, V0=0., potentialField='transverse'):
@@ -866,7 +890,9 @@ class ChoiceMC(object):
         
         # Counter for the number of MC steps in the swapped and unswapped configuration
         N_swapped = 0
+        rSwapped_arr = np.zeros(self.MC_steps,float)
         N_unswapped = 0
+        rUnswapped_arr = np.zeros(self.MC_steps,float)
         swapped = False
         
         # Index of the partition in the chain
@@ -1066,11 +1092,29 @@ class ChoiceMC(object):
                 elif ratio > np.random.uniform():
                     swapped = True  
             
+            rSwapped_arr[n] = N_swapped / (n+1)
+            rUnswapped_arr[n] = N_unswapped / (n+1)
+            
         traj_out.close()
         
+        # Finding the average and standard error in the purity using the binning method
+        workingNdim  = int(math.log(len(rSwapped_arr))/math.log(2))
+        trunc = int(len(rSwapped_arr)-2**workingNdim)
+        meanSwapped = np.mean(rSwapped_arr[trunc:])
+        meanUnswapped = np.mean(rUnswapped_arr[trunc:])
+        errSwapped = maxError_byBinning(meanSwapped, rSwapped_arr[trunc:], workingNdim-6)
+        errUnswapped = maxError_byBinning(meanUnswapped, rUnswapped_arr[trunc:], workingNdim-6)
+        purity = meanSwapped/meanUnswapped
+        err_purity = abs(purity) * np.sqrt((errUnswapped/meanUnswapped)**2 + (errSwapped/meanSwapped)**2)
+        
+        entropy = -np.log(purity)
+        err_entropy  = abs(err_purity)/purity
+        self.S2_binning = entropy
+        self.S2_err = err_entropy
         
         self.S2 = -np.log(N_swapped/N_unswapped)
         print('S2 = ', str(self.S2))
+        print('S2 Binning = ', str(self.S2_binning))
         
         self.histo = np.zeros((self.Ngrid,6))
         histo_out=open(os.path.join(self.path,'histo_A_P'+str(self.P)+'_N'+str(self.N)),'w')
