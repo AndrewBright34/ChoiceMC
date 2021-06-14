@@ -122,6 +122,13 @@ def maxError_byBinning(mean, data, workingNdim):
         error[i] = errorpropagation(mean,data)
     return np.max(error)
 
+def calculateError_byBinning(arr):
+    # Finding the average and standard error using the binning method
+    workingNdim  = int(math.log(len(arr))/math.log(2))
+    trunc = int(len(arr)-2**workingNdim)
+    mean = np.mean(arr[trunc:])
+    standardError = maxError_byBinning(mean, arr[trunc:], workingNdim-6)
+    return mean, standardError
 
 class ChoiceMC(object):
     def __init__(self, m_max, P, g, MC_steps, N, Nskip=100, Nequilibrate=0, PIGS=False, T=1, B=1, V0=0., potentialField='transverse'):
@@ -158,7 +165,7 @@ class ChoiceMC(object):
         T : float, optional
             The system temperature. The default is 1.
         B : float, optional
-            The rotational constant for the rotors in 1/cm. The default is 1.
+            The rotational constant for the rotors in energy units. The default is 1.
         V0 : float, optional
             The external potential field for the system. The default is 0.
         potentialField : string, optional
@@ -291,7 +298,7 @@ class ChoiceMC(object):
         rho_marx_out=open(os.path.join(self.path,'rhofree_marx'),'w')
         self.free_rho_marx = np.zeros((self.Ngrid, 2),float)
         for i in range(self.Ngrid):
-            dphi=float(i) * self.delta_phi
+            dphi = float(i) * self.delta_phi
             integral = 0.
             for m in range(self.m_max):
                 integral += np.exp(-1./(4.*self.tau*self.B)*(dphi+2.*np.pi*float(m))**2)
@@ -768,32 +775,49 @@ class ChoiceMC(object):
         if averagePotential == True:
             V_average = np.mean(V_arr[self.Nequilibrate:])/self.N
             V_stdError = np.std(V_arr[self.Nequilibrate:])/np.sqrt(self.MC_steps-self.Nequilibrate)/self.N
+            meanV, stdErrV = calculateError_byBinning(V_arr[self.Nequilibrate:]/self.N)
             if not self.PIGS:
                 V_average /= self.P
                 V_stdError /= self.P
+                meanV /= self.P
+                stdErrV /= self.P
             print('<V> = ', V_average)
+            print('<V>_bin = ', meanV)
             print('V_SE = ', V_stdError)
+            print('V_SE_bin = ', stdErrV)
             self.V_MC = V_average
             self.V_stdError_MC = V_stdError
+            self.V_MC_bin = meanV
+            self.V_stdError_MC_bin = stdErrV
         if averageEnergy == True:
             # Need to divide by two according to the PIGS formula
             E_arr/=2
             E_average = np.mean(E_arr[self.Nequilibrate:])/self.N
             E_stdError = np.std(E_arr[self.Nequilibrate:])/np.sqrt(self.MC_steps-self.Nequilibrate)/self.N
+            meanE, stdErrE = calculateError_byBinning(E_arr[self.Nequilibrate:]/self.N)
             print('E0 = ', E_average)
+            print('E0_bin = ', meanE)
             print('E0_SE = ', E_stdError)
+            print('E0_SE_bin = ', stdErrE)
             self.E_MC = E_average
             self.E_stdError_MC = E_stdError
+            self.E_MC_bin = meanE
+            self.E_stdError_MC_bin = stdErrE
         if orientationalCorrelations == True:
             eiej_average = np.mean(eiej_arr[self.Nequilibrate:])/self.N
             eiej_stdError = np.std(eiej_arr[self.Nequilibrate:])/np.sqrt(self.MC_steps-self.Nequilibrate)/self.N
+            meanO, stdErrO = calculateError_byBinning(eiej_arr[self.Nequilibrate:]/self.N)
             if not self.PIGS:
                 eiej_average /= self.P
                 eiej_stdError /= self.P
             print('<ei.ej> = ', eiej_average)
+            print('<ei.ej>_bin = ', meanO)
             print('ei.ej_SE = ', eiej_stdError)
+            print('ei.ej_SE_bin = ', stdErrO)
             self.eiej_MC = eiej_average
             self.eiej_stdError_MC = eiej_stdError
+            self.eiej_MC_bin = meanO
+            self.eiej_stdError_MC_bin = stdErrO
 
         self.histo = np.zeros((self.Ngrid,6))
         histo_out=open(os.path.join(self.path,'histo_A_P'+str(self.P)+'_N'+str(self.N)),'w')
@@ -1099,15 +1123,10 @@ class ChoiceMC(object):
         traj_out.close()
         
         # Finding the average and standard error in the purity using the binning method
-        workingNdim  = int(math.log(len(rSwapped_arr))/math.log(2))
-        trunc = int(len(rSwapped_arr)-2**workingNdim)
-        meanSwapped = np.mean(rSwapped_arr[trunc:])
-        meanUnswapped = np.mean(rUnswapped_arr[trunc:])
-        errSwapped = maxError_byBinning(meanSwapped, rSwapped_arr[trunc:], workingNdim-6)
-        errUnswapped = maxError_byBinning(meanUnswapped, rUnswapped_arr[trunc:], workingNdim-6)
+        meanSwapped, errSwapped = calculateError_byBinning(rSwapped_arr)
+        meanUnswapped, errUnswapped = calculateError_byBinning(rUnswapped_arr)
         purity = meanSwapped/meanUnswapped
         err_purity = abs(purity) * np.sqrt((errUnswapped/meanUnswapped)**2 + (errSwapped/meanSwapped)**2)
-        
         entropy = -np.log(purity)
         err_entropy  = abs(err_purity)/purity
         self.S2_binning = entropy
