@@ -121,6 +121,7 @@ for tau in tau_sweep:
         ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
         if i+1 == 2*((len(g_sweep)+1)//2) or i+1 == 2*((len(g_sweep)+1)//2)-1:
             ax.set_xlabel(r'$\beta\ (K^{-1})$')
+    E_fig.suptitle(r'$\tau\ =\ $' + str(tau))
     E_fig.tight_layout()
     E_fig.savefig("Energy_gBetaSweep.png")
     
@@ -140,6 +141,7 @@ for tau in tau_sweep:
         ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
         if i+1 == 2*((len(g_sweep)+1)//2) or i+1 == 2*((len(g_sweep)+1)//2)-1:
             ax.set_xlabel(r'$\beta\ (K^{-1})$')
+    E_fig.suptitle(r'$\tau\ =\ $' + str(tau))
     E_fig.tight_layout()
     E_fig.savefig("EnergyBin_gBetaSweep.png")
     

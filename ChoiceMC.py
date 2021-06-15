@@ -1181,17 +1181,17 @@ class ChoiceMC(object):
         ax.set_ylabel('Density Matrix')
         ax.set_title('Density Matrices')
         ax.legend()
-        text = np.array([["Temperature", str(self.T) + " K"],
+        text = np.array([["Temperature", str(round(self.T,3)) + " K"],
                         ["Number of\nGrid Points", str(self.Ngrid)],
                         ["Number of\nBeads", str(self.P)],
                         ["Number of\nMC Steps", str(self.MC_steps)],
                         ["Number of\nRotors", str(self.N)],
                         ["Interaction\nStrength", str(round(self.g,3))],
-                        ["Rotational\nConstant", str(self.B)],
+                        ["Rotational\nConstant", str(round(self.B,3))],
                         ["Skip Steps", str(self.Nskip)],
                         ["Equilibration\nSteps", str(self.Nequilibrate)],
                         ["PIGS", str(self.PIGS)],
-                        ["Potential (V0)", str(self.V0)]])
+                        ["Potential (V0)", str(round(self.V0,3))]])
         ax_table.axis("off")
         table = ax_table.table(cellText=text, 
                                loc='center',
@@ -1236,17 +1236,17 @@ class ChoiceMC(object):
         ax.set_ylabel('Probability Density')
         ax.set_title('Histograms')
         ax.legend()
-        text = np.array([["Temperature", str(self.T) + " K"],
+        text = np.array([["Temperature", str(round(self.T,3)) + " K"],
                         ["Number of\nGrid Points", str(self.Ngrid)],
                         ["Number of\nBeads", str(self.P)],
                         ["Number of\nMC Steps", str(self.MC_steps)],
                         ["Number of\nRotors", str(self.N)],
                         ["Interaction\nStrength", str(round(self.g,3))],
-                        ["Rotational\nConstant", str(self.B)],
+                        ["Rotational\nConstant", str(round(self.B,3))],
                         ["Skip Steps", str(self.Nskip)],
                         ["Equilibration\nSteps", str(self.Nequilibrate)],
                         ["PIGS", str(self.PIGS)],
-                        ["Potential (V0)", str(self.V0)]])
+                        ["Potential (V0)", str(round(self.V0,3))]])
         ax_table.axis("off")
         table = ax_table.table(cellText=text, 
                                loc='center',
