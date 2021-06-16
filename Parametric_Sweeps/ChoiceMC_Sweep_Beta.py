@@ -39,7 +39,6 @@ for tau in tau_sweep:
 
     # Creating dictionaries to store the results from the g and N sweep
     g_sweep_dict_E = {}
-    g_sweep_dict_E_bin = {}
     # Performing the sweep over mMax
     for ig, g in enumerate(g_sweep):
         print("------------------------------------------------")
@@ -48,8 +47,6 @@ for tau in tau_sweep:
         # Creating arrays to store the E, V and O versus g data
         energy = np.zeros((len(T_sweep),3), float)
         energy_out = open(os.path.join(data_path,"Energy_g" + str(g) + '.dat'),'w')
-        energy_bin = np.zeros((len(T_sweep),3), float)
-        energy_out_bin = open(os.path.join(data_path,"EnergyBin_g" + str(g) + '.dat'),'w')
     
         for i, T in enumerate(T_sweep):
             print("------------------------------------------------")
@@ -70,8 +67,6 @@ for tau in tau_sweep:
             # Storing and saving the data from the current run
             energy[i,:] = [PIMC.beta, PIMC.E_MC, PIMC.E_stdError_MC]
             energy_out.write(str(PIMC.beta) + ' ' + str(PIMC.E_MC) + ' ' + str(PIMC.E_stdError_MC) + '\n')
-            energy_bin[i,:] = [PIMC.beta, PIMC.E_MC_bin, PIMC.E_stdError_MC_bin]
-            energy_out_bin.write(str(PIMC.beta) + ' ' + str(PIMC.E_MC_bin) + ' ' + str(PIMC.E_stdError_MC_bin) + '\n')
                 
             # Closing the remaining open plots
             plt.close('all')
@@ -81,29 +76,14 @@ for tau in tau_sweep:
         E_ax.plot()
         E_ax.errorbar(energy[:,0], energy[:,1], energy[:,2], label='PIGS', fmt='.-', capsize=3)
         E_ax.set_xlabel(r'$\beta (K^{-1})$')
-        E_ax.set_ylabel(r'$E_0$')
+        E_ax.set_ylabel(r'$E_0$'+' Per Interaction')
         E_ax.annotate('N = ' + str(N) + '; g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
         E_ax.minorticks_on()
-        E_ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
         E_fig.tight_layout()
         E_fig.savefig(os.path.join(data_path,"Energy_g" + str(g) + ".png"))
-        
-        # Plotting
-        E_fig, E_ax = plt.subplots(1, 1, figsize=(8,5))
-        E_ax.plot()
-        E_ax.errorbar(energy_bin[:,0], energy_bin[:,1], energy_bin[:,2], label='PIGS', fmt='.-', capsize=3)
-        E_ax.set_xlabel(r'$\beta (K^{-1})$')
-        E_ax.set_ylabel(r'$E_0$')
-        E_ax.annotate('N = ' + str(N) + '; g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
-        E_ax.minorticks_on()
-        E_ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
-        E_fig.tight_layout()
-        E_fig.savefig(os.path.join(data_path,"EnergyBin_g" + str(g) + ".png"))
             
         g_sweep_dict_E.update({g: energy})
         energy_out.close()
-        g_sweep_dict_E_bin.update({g: energy_bin})
-        energy_out_bin.close()
         plt.close('all')
         
     # Plotting the energy versus g for varied mMax
@@ -117,7 +97,7 @@ for tau in tau_sweep:
             xlim = ax.get_xlim()
         else:
             ax.set_xlim(xlim)
-        ax.set_ylabel(r'$E_0$')
+        ax.set_ylabel(r'$E_0$'+' Per Interaction')
         ax.minorticks_on()
         ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
         if i+1 == 2*((len(g_sweep)+1)//2) or i+1 == 2*((len(g_sweep)+1)//2)-1:
@@ -125,26 +105,6 @@ for tau in tau_sweep:
     E_fig.suptitle(r'$\tau\ =\ $' + str(tau))
     E_fig.tight_layout()
     E_fig.savefig("Energy_gBetaSweep.png")
-    
-    # Plotting the energy versus g for varied mMax
-    E_fig = plt.figure(figsize=(8,3*((len(g_sweep)+1)//2)))
-    xlim = 0.
-    for i, g in enumerate(g_sweep_dict_E_bin):
-        ax = E_fig.add_subplot((len(g_sweep)+1)//2, 2, i+1)
-        ax.errorbar(g_sweep_dict_E_bin[g][:,0], g_sweep_dict_E_bin[g][:,1], g_sweep_dict_E_bin[g][:,2], label='PIGS', fmt='.-', capsize=3)
-        ax.annotate('N = ' + str(N) + '; g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
-        if i == 0:
-            xlim = ax.get_xlim()
-        else:
-            ax.set_xlim(xlim)
-        ax.set_ylabel(r'$E_0$')
-        ax.minorticks_on()
-        ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
-        if i+1 == 2*((len(g_sweep)+1)//2) or i+1 == 2*((len(g_sweep)+1)//2)-1:
-            ax.set_xlabel(r'$\beta\ (K^{-1})$')
-    E_fig.suptitle(r'$\tau\ =\ $' + str(tau))
-    E_fig.tight_layout()
-    E_fig.savefig("EnergyBin_gBetaSweep.png")
     
     plt.close("all")
     

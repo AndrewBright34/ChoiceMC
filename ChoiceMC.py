@@ -261,8 +261,11 @@ class ChoiceMC(object):
                         if m1==m1p and m2==m2p:
                             # Kinetic contribution
                             H[m1*size + m2, m1p*size + m2p] += B * float(m1**2)
+                            H[m1*size + m2, m1p*size + m2p] += B * float(m2**2)
                         # Potential contribution
                         H[m1*size + m2, m1p*size + m2p] += g * (-1*sin_mmp[m1,m1p]*sin_mmp[m2,m2p] - 2*cos_mmp[m1,m1p]*cos_mmp[m2,m2p])
+        
+        
         # Finding the eigenavalues and eigenvectors
         evals, evecs = np.linalg.eigh(H)
         # Evaluating the observables
@@ -706,12 +709,12 @@ class ChoiceMC(object):
                         # Interaction with the rotor to the left
                         for ir in range(len(prob_full)):
                             prob_full[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
-                    if (i==0):
-                        # Periodic BC for the leftmost rotor
+                    if (i==0) and (self.N>2):
+                        # Periodic BC for the leftmost rotor, doesn't apply to the 2 rotor system
                         for ir in range(len(prob_full)):
                             prob_full[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
-                    if (i==(self.N-1)):
-                        # Periodic BC for the rightmost rotor
+                    if (i==(self.N-1)) and (self.N>2):
+                        # Periodic BC for the rightmost rotor, doesn't apply to the 2 rotor system
                         for ir in range(len(prob_full)):
                             prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
         
@@ -737,13 +740,13 @@ class ChoiceMC(object):
                             if (i>0):
                                 # Only look at left neighbour to avoid double counting
                                 V_arr[n] += Vij(path_phi[i-1,p]*self.delta_phi, path_phi[i,p]*self.delta_phi, self.g)
-                                if (i==(self.N-1)):
+                                if (i==(self.N-1)) and (self.N>2):
                                     # Periodic BCs
                                     V_arr[n] += Vij(path_phi[i,p]*self.delta_phi, path_phi[0,p]*self.delta_phi, self.g)
                         if n >= self.Nequilibrate and orientationalCorrelations == True:
                             if (i>0):
                                 eiej_arr[n] += calculateOrientationalCorrelations(path_phi[i-1,p]*self.delta_phi, path_phi[i,p]*self.delta_phi)
-                                if (i==(self.N-1)):
+                                if (i==(self.N-1)) and (self.N>2):
                                     eiej_arr[n] += calculateOrientationalCorrelations(path_phi[i,p]*self.delta_phi, path_phi[0,p]*self.delta_phi)
                                     
                 # End of bead loop
@@ -757,7 +760,7 @@ class ChoiceMC(object):
                     if (i>0):
                         E_arr[n] += Vij(path_phi[i-1,0]*self.delta_phi, path_phi[i,0]*self.delta_phi, self.g)
                         E_arr[n] += Vij(path_phi[i-1,self.P-1]*self.delta_phi, path_phi[i,self.P-1]*self.delta_phi, self.g)
-                        if (i==(self.N-1)):
+                        if (i==(self.N-1)) and (self.N>2):
                             E_arr[n] += Vij(path_phi[i,0]*self.delta_phi, path_phi[0,0]*self.delta_phi, self.g)
                             E_arr[n] += Vij(path_phi[i,self.P-1]*self.delta_phi, path_phi[0,self.P-1]*self.delta_phi, self.g)
                 
@@ -774,51 +777,34 @@ class ChoiceMC(object):
         traj_out.close()
         
         if averagePotential == True:
-            V_average = np.mean(V_arr[self.Nequilibrate:])/self.N
-            V_stdError = np.std(V_arr[self.Nequilibrate:])/np.sqrt(self.MC_steps-self.Nequilibrate)/self.N
-            meanV, stdErrV = calculateError_byBinning(V_arr[self.Nequilibrate:]/self.N)
+            Ninteractions = self.N if self.N>2 else 1
+            meanV, stdErrV = calculateError_byBinning(V_arr[self.Nequilibrate:]/Ninteractions)
             if not self.PIGS:
-                V_average /= self.P
-                V_stdError /= self.P
                 meanV /= self.P
                 stdErrV /= self.P
-            print('<V> = ', V_average)
-            print('<V>_bin = ', meanV)
-            print('V_SE = ', V_stdError)
-            print('V_SE_bin = ', stdErrV)
-            self.V_MC = V_average
-            self.V_stdError_MC = V_stdError
-            self.V_MC_bin = meanV
-            self.V_stdError_MC_bin = stdErrV
+            print('<V> = ', meanV)
+            print('V_SE = ', stdErrV)
+            self.V_MC = meanV
+            self.V_stdError_MC = stdErrV
         if averageEnergy == True:
+            Ninteractions = self.N if self.N>2 else 1
             # Need to divide by two according to the PIGS formula
             E_arr/=2
-            E_average = np.mean(E_arr[self.Nequilibrate:])/self.N
-            E_stdError = np.std(E_arr[self.Nequilibrate:])/np.sqrt(self.MC_steps-self.Nequilibrate)/self.N
-            meanE, stdErrE = calculateError_byBinning(E_arr[self.Nequilibrate:]/self.N)
-            print('E0 = ', E_average)
-            print('E0_bin = ', meanE)
-            print('E0_SE = ', E_stdError)
-            print('E0_SE_bin = ', stdErrE)
-            self.E_MC = E_average
-            self.E_stdError_MC = E_stdError
-            self.E_MC_bin = meanE
-            self.E_stdError_MC_bin = stdErrE
+            meanE, stdErrE = calculateError_byBinning(E_arr[self.Nequilibrate:]/Ninteractions)
+            print('E0 = ', meanE)
+            print('E0_SE = ', stdErrE)
+            self.E_MC = meanE
+            self.E_stdError_MC = stdErrE
         if orientationalCorrelations == True:
-            eiej_average = np.mean(eiej_arr[self.Nequilibrate:])/self.N
-            eiej_stdError = np.std(eiej_arr[self.Nequilibrate:])/np.sqrt(self.MC_steps-self.Nequilibrate)/self.N
-            meanO, stdErrO = calculateError_byBinning(eiej_arr[self.Nequilibrate:]/self.N)
+            Ninteractions = self.N if self.N>2 else 1
+            meaneiej, stdErreiej = calculateError_byBinning(eiej_arr[self.Nequilibrate:]/Ninteractions)
             if not self.PIGS:
-                eiej_average /= self.P
-                eiej_stdError /= self.P
-            print('<ei.ej> = ', eiej_average)
-            print('<ei.ej>_bin = ', meanO)
-            print('ei.ej_SE = ', eiej_stdError)
-            print('ei.ej_SE_bin = ', stdErrO)
-            self.eiej_MC = eiej_average
-            self.eiej_stdError_MC = eiej_stdError
-            self.eiej_MC_bin = meanO
-            self.eiej_stdError_MC_bin = stdErrO
+                meaneiej /= self.P
+                stdErreiej /= self.P
+            print('<ei.ej> = ', meaneiej)
+            print('ei.ej_SE = ', stdErreiej)
+            self.eiej_MC = meaneiej
+            self.eiej_stdError_MC = stdErreiej
 
         self.histo = np.zeros((self.Ngrid,6))
         histo_out=open(os.path.join(self.path,'histo_A_P'+str(self.P)+'_N'+str(self.N)),'w')
@@ -1012,8 +998,8 @@ class ChoiceMC(object):
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[i-1,p]] 
-                    if (i==0):
-                        # Periodic BC for the leftmost rotor
+                    if (i==0) and (self.N>2):
+                        # Periodic BC for the leftmost rotor, only applies for more than 2 rotors
                         if (p==P_middle) and swapped:
                             # Swaps the left interaction for the middle bead of the leftmost rotor
                             for ir in range(len(prob_full)):
@@ -1025,8 +1011,8 @@ class ChoiceMC(object):
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
                                 prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[self.N-1,p]]
-                    if (i==(self.N-1)):
-                        # Periodic BC for the rightmost rotor
+                    if (i==(self.N-1)) and (self.N>2):
+                        # Periodic BC for the rightmost rotor, only applies for more than 2 rotors
                         if (p==P_middle) and swapped:
                             # Swaps the left interaction for the middle bead of the rightmost rotor
                             for ir in range(len(prob_full)):
@@ -1093,11 +1079,12 @@ class ChoiceMC(object):
                 rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
                 
             # Potential contribution, this only impacts the middle bead
-            # Interactions for the periodic BCs
-            rhoUnswapped *= rhoVij_half[path_phi[0,P_middle],path_phi[self.N-1,P_middle]]
-            rhoUnswapped *= rhoVij_half[path_phi_replica[0,P_middle],path_phi_replica[self.N-1,P_middle]]
-            rhoSwapped *= rhoVij_half[path_phi_replica[0,P_middle],path_phi[self.N-1,P_middle]]
-            rhoSwapped *= rhoVij_half[path_phi[0,P_middle],path_phi_replica[self.N-1,P_middle]]
+            # Interactions for the periodic BCs, only applies for more than 2 rotors
+            if (self.N>2):
+                rhoUnswapped *= rhoVij_half[path_phi[0,P_middle],path_phi[self.N-1,P_middle]]
+                rhoUnswapped *= rhoVij_half[path_phi_replica[0,P_middle],path_phi_replica[self.N-1,P_middle]]
+                rhoSwapped *= rhoVij_half[path_phi_replica[0,P_middle],path_phi[self.N-1,P_middle]]
+                rhoSwapped *= rhoVij_half[path_phi[0,P_middle],path_phi_replica[self.N-1,P_middle]]
             # Interactions at the partition between A and B
             rhoUnswapped *= rhoVij_half[path_phi[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
             rhoUnswapped *= rhoVij_half[path_phi_replica[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
@@ -1130,12 +1117,10 @@ class ChoiceMC(object):
         err_purity = abs(purity) * np.sqrt((errUnswapped/meanUnswapped)**2 + (errSwapped/meanSwapped)**2)
         entropy = -np.log(purity)
         err_entropy  = abs(err_purity)/purity
-        self.S2_binning = entropy
+        self.S2 = entropy
         self.S2_err = err_entropy
         
-        self.S2 = -np.log(N_swapped/N_unswapped)
         print('S2 = ', str(self.S2))
-        print('S2 Binning = ', str(self.S2_binning))
         
         self.histo = np.zeros((self.Ngrid,6))
         histo_out=open(os.path.join(self.path,'histo_A_P'+str(self.P)+'_N'+str(self.N)),'w')
