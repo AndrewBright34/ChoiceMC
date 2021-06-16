@@ -15,6 +15,7 @@ parent_dir = os.getcwd()
 tau_sweep = [0.05, 0.1]
 g_sweep = [0.1, 1., 2., 4.]
 P_sweep = [3, 5, 7, 9, 11, 13, 15, 19, 23, 27, 31, 35]
+N = 2
 for tau in tau_sweep:
     # Making a folder to store the current test
     time_str = "Beta_Sweep_tau"+str(tau)+"-"+str(time.gmtime().tm_year)+'-'+str(time.gmtime().tm_mon)+'-'+str(time.gmtime().tm_mday)
@@ -54,7 +55,7 @@ for tau in tau_sweep:
             print("------------------------------------------------")
             print("Starting T = " + str(T) + "; P = " + str(P_sweep[i]))
             # Creating a ChoiceMC object for the current iteration
-            PIMC = ChoiceMC(m_max=5, P=P_sweep[i], g=g, MC_steps=100000, N=2, PIGS=True, Nskip=100, Nequilibrate=100, T=T)
+            PIMC = ChoiceMC(m_max=5, P=P_sweep[i], g=g, MC_steps=100000, N=N, PIGS=True, Nskip=100, Nequilibrate=100, T=T)
             print("Beta = " + str(PIMC.beta) + "; Tau = " + str(PIMC.tau))
             # Creating the probability density matrix for each rotor
             PIMC.createFreeRhoMarx()
@@ -81,7 +82,7 @@ for tau in tau_sweep:
         E_ax.errorbar(energy[:,0], energy[:,1], energy[:,2], label='PIGS', fmt='.-', capsize=3)
         E_ax.set_xlabel(r'$\beta (K^{-1})$')
         E_ax.set_ylabel(r'$E_0$')
-        E_ax.annotate('N = 2; g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
+        E_ax.annotate('N = ' + str(N) + '; g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
         E_ax.minorticks_on()
         E_ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
         E_fig.tight_layout()
@@ -93,7 +94,7 @@ for tau in tau_sweep:
         E_ax.errorbar(energy_bin[:,0], energy_bin[:,1], energy_bin[:,2], label='PIGS', fmt='.-', capsize=3)
         E_ax.set_xlabel(r'$\beta (K^{-1})$')
         E_ax.set_ylabel(r'$E_0$')
-        E_ax.annotate('N = 2; g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
+        E_ax.annotate('N = ' + str(N) + '; g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
         E_ax.minorticks_on()
         E_ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
         E_fig.tight_layout()
@@ -111,7 +112,7 @@ for tau in tau_sweep:
     for i, g in enumerate(g_sweep_dict_E):
         ax = E_fig.add_subplot((len(g_sweep)+1)//2, 2, i+1)
         ax.errorbar(g_sweep_dict_E[g][:,0], g_sweep_dict_E[g][:,1], g_sweep_dict_E[g][:,2], label='PIGS', fmt='.-', capsize=3)
-        ax.annotate('N = 2; g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
+        ax.annotate('N = ' + str(N) + '; g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
         if i == 0:
             xlim = ax.get_xlim()
         else:
@@ -131,7 +132,7 @@ for tau in tau_sweep:
     for i, g in enumerate(g_sweep_dict_E_bin):
         ax = E_fig.add_subplot((len(g_sweep)+1)//2, 2, i+1)
         ax.errorbar(g_sweep_dict_E_bin[g][:,0], g_sweep_dict_E_bin[g][:,1], g_sweep_dict_E_bin[g][:,2], label='PIGS', fmt='.-', capsize=3)
-        ax.annotate('N = 2; g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
+        ax.annotate('N = ' + str(N) + '; g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
         if i == 0:
             xlim = ax.get_xlim()
         else:

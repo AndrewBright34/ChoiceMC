@@ -123,6 +123,10 @@ for ig, g in enumerate(g_sweep):
     arrE_fit_bin[ig, :] = [g, Efit_bin[2]]
     arrO_fit[ig, :] = [g, Ofit[2]]
     arrO_fit_bin[ig, :] = [g, Ofit_bin[2]]
+    E_fit_out.write(str(g) + ' ' + str(Efit[2]) + '\n')
+    E_fit_out_bin.write(str(g) + ' ' + str(Efit_bin[2]) + '\n')
+    O_fit_out.write(str(g) + ' ' + str(Ofit[2]) + '\n')
+    O_fit_out_bin.write(str(g) + ' ' + str(Ofit_bin[2]) + '\n')
     
     # Creating an array of tau for plotting a smooth line
     tauAx = np.linspace(0, np.max(arrE[:,0]), 40)
@@ -212,7 +216,7 @@ fig, ax = plt.subplots(1, 1, figsize=(8,5))
 ax.plot(arrO_fit[:,0], arrO_fit[:,1], label='PIGS', marker='o', color='k')
 ax.set_xlabel('g')
 ax.set_ylabel("Orientational Correlation")
-ax.annotate('N = ' + str(N), xy=(0.05, 0.95),  xycoords='axes fraction', horizontalalignment='left', verticalalignment='top')
+ax.annotate('N = ' + str(N), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='left', verticalalignment='top')
 ax.minorticks_on()
 ax.legend()
 fig.tight_layout()
@@ -223,11 +227,11 @@ fig, ax = plt.subplots(1, 1, figsize=(8,5))
 ax.plot(arrO_fit_bin[:,0], arrO_fit_bin[:,1], label='PIGS', marker='o', color='k')
 ax.set_xlabel('g')
 ax.set_ylabel("Orientational Correlation")
-ax.annotate('N = ' + str(N), xy=(0.05, 0.95),  xycoords='axes fraction', horizontalalignment='left', verticalalignment='top')
+ax.annotate('N = ' + str(N), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='left', verticalalignment='top')
 ax.minorticks_on()
 ax.legend()
 fig.tight_layout()
-fig.savefig("OrienCorrBin_N" + str() + ".png")
+fig.savefig("OrienCorrBin_N" + str(N) + ".png")
 
 E_fit_out.close()
 E_fit_out_bin.close()

@@ -124,6 +124,7 @@ def maxError_byBinning(mean, data, workingNdim):
 
 def calculateError_byBinning(arr):
     # Finding the average and standard error using the binning method
+    # This method requires 2^n data points, this truncates the data to fit this
     workingNdim  = int(math.log(len(arr))/math.log(2))
     trunc = int(len(arr)-2**workingNdim)
     mean = np.mean(arr[trunc:])
