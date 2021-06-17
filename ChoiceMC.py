@@ -497,8 +497,6 @@ class ChoiceMC(object):
         
         Returns
         -------
-        self.potential: numpy array
-            Nx2 array containing the potential for the rotors
         self.rho_nmm: numpy array
             Nx2 numpy array with the phi value in the 1st column and density 
             matrix values in the 2nd column
@@ -513,12 +511,16 @@ class ChoiceMC(object):
             Ground state energy calculated by the NMM method
         """
         rho_free=np.zeros((self.Ngrid,self.Ngrid),float)
-        rho_potential=np.zeros(self.Ngrid,float)
-        potential=np.zeros(self.Ngrid,float)
+        rho_potential=np.zeros((self.Ngrid,self.Ngrid),float)
+        potential=np.zeros((self.Ngrid,self.Ngrid),float)
+    
         for i in range(self.Ngrid):
-            potential[i] = self.potFunc(float(i)*self.delta_phi,self.V0)
-            rho_potential[i]=np.exp(-(self.tau/2.)*potential[i])
+            # External field interaction
+            potential[i,i] += self.potFunc(float(i)*self.delta_phi,self.V0)
             for ip in range(self.Ngrid):
+                # Nearest neighbour interaction
+                potential[i,ip] += Vij(i*self.delta_phi, ip*self.delta_phi, self.g)
+                rho_potential[i]=np.exp(-(self.tau/2.)*potential[i, ip])
                 integral=0.
                 dphi=float(i-ip)*self.delta_phi
                 for m in range(self.m_max):
@@ -528,19 +530,11 @@ class ChoiceMC(object):
                 integral*=np.sqrt(1./(4.*np.pi*self.B*self.tau))
                 rho_free[i,ip]=integral
         
-        self.potential = np.zeros((self.Ngrid, 2),float)
-        #output potential to a file
-        potential_out=open(os.path.join(self.path,'V'),'w')
-        for i in range(self.Ngrid):
-                potential_out.write(str(float(i)*self.delta_phi)+' '+str(potential[i])+'\n')
-                self.potential[i,:] = [float(i)*self.delta_phi, potential[i]]
-        potential_out.close()
-        
         # construct the high temperature density matrix
         rho_tau=np.zeros((self.Ngrid,self.Ngrid),float)
         for i1 in range(self.Ngrid):
                 for i2 in range(self.Ngrid):
-                        rho_tau[i1,i2]=rho_potential[i1]*rho_free[i1,i2]*rho_potential[i2]
+                        rho_tau[i1,i2]=rho_potential[i1,i2]*rho_free[i1,i2]*rho_potential[i1,i2]
         
         # form the density matrix via matrix multiplication        
         rho_beta=rho_tau.copy()
@@ -557,7 +551,7 @@ class ChoiceMC(object):
         self.rho_nmm = np.zeros((self.Ngrid, 2), float)
         self.free_rho_nmm = np.zeros((self.Ngrid, 2), float)
         for i in range(self.Ngrid):
-            E0_nmm += rho_dot_V[i]
+            E0_nmm += rho_dot_V[i,i]
             rho_nmm_out.write(str(i*self.delta_phi)+ ' '+str(rho_beta[i,i]/Z_nmm)+'\n')
             self.rho_nmm[i,:] = [i*self.delta_phi, rho_beta[i,i]/Z_nmm]
             self.free_rho_nmm[i,:] = [i*self.delta_phi, rho_free[i,i]/Z_free_nmm]
