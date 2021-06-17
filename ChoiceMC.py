@@ -142,12 +142,12 @@ def fitFuncQuartic_E(tau, a, b, c):
     # tau = 0 that opens downwards
     return a*tau**4 + b*tau**2 + c
 
-def extrapolateE0(arr, type='quadratic'):
+def extrapolateE0(arr, fitType='quadratic'):
     # Takes an Nx2 array (tau, E0)
     # Returns the coefficients for the fitting function specified
-    if type == 'quadratic':
+    if fitType == 'quadratic':
         return curve_fit(fitFuncQuadratic_E, arr[:,0], arr[:,1])[0]
-    elif type == 'quartic':
+    elif fitType == 'quartic':
         return curve_fit(fitFuncQuartic_E, arr[:,0], arr[:,1])[0]
     else:
         raise Exception("Invalid fitting function type, please use quadratic or quartic")
