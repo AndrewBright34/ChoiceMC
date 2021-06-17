@@ -23,7 +23,7 @@ g_sweep = np.linspace(0.01, 4, 30)
 N=4
     
 # Creating arrays to store the S2 versus g data
-entanglement = np.zeros((len(g_sweep),4), float)
+entanglement = np.zeros((len(g_sweep),3), float)
 entanglement_out = open("S2_N"+str(N)+'.dat','w')
 
 for ig, g in enumerate(g_sweep):

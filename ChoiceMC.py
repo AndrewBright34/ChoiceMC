@@ -248,6 +248,7 @@ class ChoiceMC(object):
         size2 = self.Ngrid**2
         g = self.g
         B = self.B
+        mMax = self.m_max
         # Creating the cos and sin potential matrices
         cos_mmp = pot_matrix_cos(size)
         sin_mmp = pot_matrix_sin(size)
@@ -260,8 +261,8 @@ class ChoiceMC(object):
                     for m2p in range(self.Ngrid):
                         if m1==m1p and m2==m2p:
                             # Kinetic contribution
-                            H[m1*size + m2, m1p*size + m2p] += B * float(m1**2)
-                            H[m1*size + m2, m1p*size + m2p] += B * float(m2**2)
+                            H[m1*size + m2, m1p*size + m2p] += B * float((-mMax+m1)**2)
+                            H[m1*size + m2, m1p*size + m2p] += B * float((-mMax+m2)**2)
                         # Potential contribution
                         H[m1*size + m2, m1p*size + m2p] += g * (-1*sin_mmp[m1,m1p]*sin_mmp[m2,m2p] - 2*cos_mmp[m1,m1p]*cos_mmp[m2,m2p])
         
