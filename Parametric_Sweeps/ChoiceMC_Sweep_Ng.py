@@ -1,10 +1,10 @@
 # Importing the ChoiceMC class, this structure should be improved
 import sys
 try:
-    from ChoiceMC import ChoiceMC
+    from ChoiceMC import ChoiceMC, extrapolateE0
 except ModuleNotFoundError:
     sys.path.append('..')
-    from ChoiceMC import ChoiceMC
+    from ChoiceMC import ChoiceMC, extrapolateE0
 import matplotlib.pyplot as plt
 
 import numpy as np
@@ -97,7 +97,8 @@ for ig, g in enumerate(g_sweep):
     O_out.close()
     
     # Extrapolating to the tau = 0 limit
-    Efit = np.polyfit(arrE[:,0], arrE[:,1], 2)
+    #Efit = np.polyfit(arrE[:,0], arrE[:,1], 2)
+    Efit = extrapolateE0(arrE, 'quartic')
     Ofit = np.polyfit(arrO[:,0], arrO[:,1], 2)
     
     # Storing the fitted results
@@ -113,7 +114,7 @@ for ig, g in enumerate(g_sweep):
     
     # Plotting E0 vs tau
     fig, ax = plt.subplots(1, 1, figsize=(8,5))
-    ax.plot(tauAx, (Efit[0]*tauAx**2 + Efit[1]*tauAx + Efit[2]), color='k')
+    ax.plot(tauAx, (Efit[0]*tauAx**4 + Efit[1]*tauAx**2 + Efit[2]), color='k')
     ax.plot(0, Efit[2], marker='o', color='k', label='PIGS: Fit')
     ax.errorbar(arrE[:,0], arrE[:,1], arrE[:,2], label='PIGS', fmt='o', capsize=3)
     ax.set_xlabel(r'$\tau\ (K^{-1})$')

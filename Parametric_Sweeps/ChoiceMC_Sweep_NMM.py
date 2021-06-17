@@ -108,4 +108,25 @@ E_fig.tight_layout()
 E_fig.savefig("Energy_mMaxSweep.png")
 plt.close('all')
 
-    
+g_sweep = np.sort(np.append(np.linspace(0.01, 4, 40),np.array([0.1, 1., 2.])))
+energy = np.zeros((len(g_sweep),2), float)
+energy_out = open("Energy_NMM.dat", 'w')
+for ig, g in enumerate(g_sweep):
+    PIMC = ChoiceMC(m_max=25, P=21, g=g, MC_steps=10000, N=2, PIGS=True, Nskip=100, Nequilibrate=100)
+    PIMC.createRhoNMM()
+    energy[ig,:] = [g, PIMC.E0_nmm]
+    energy_out.write(str(g) + ' ' + str(PIMC.E0_nmm) + '\n')
+# Plotting E0 versus g
+fig, ax = plt.subplots(1, 1, figsize=(8,5))
+ax.plot(energy[:,0], energy[:,1], label='NMM', marker='o', color='k')
+ax.set_xlabel('g')
+ax.set_ylabel(r'$E_0$')
+ax.annotate('N = 2; P = 21;' + r'$\ M_{Max}$' + ' = 25', xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
+ax.minorticks_on()
+ax.legend()
+fig.tight_layout()
+fig.savefig("Energ_NMM.png")
+energy_out.close()
+plt.close('all')
+
+
