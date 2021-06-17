@@ -52,7 +52,6 @@ for ig, g in enumerate(g_sweep):
 # Plotting
 S2_fig, S2_ax = plt.subplots(1, 1, figsize=(8,5))
 S2_ax.errorbar(entanglement[:,0], entanglement[:,1], entanglement[:,2], fmt='.-', capsize=3)
-
 S2_ax.minorticks_on()
 S2_ax.set_xlabel('g')
 S2_ax.set_ylabel(r'$S_2$')

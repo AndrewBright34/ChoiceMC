@@ -1,6 +1,7 @@
 import numpy as np
 import math
 from numpy.random import default_rng
+from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 import os
 
@@ -131,6 +132,26 @@ def calculateError_byBinning(arr):
     standardError = maxError_byBinning(mean, arr[trunc:], workingNdim-6)
     return mean, standardError
 
+def fitFuncQuadratic_E(tau, a, b):
+    # Curve fitting function, this ensure that it is a quadratic centered around
+    # tau = 0 that opens downwards
+    return -1*abs(a*(tau**2)) + b
+
+def fitFuncQuartic_E(tau, a, b, c):
+    # Curve fitting function, this ensure that it is a quadratic centered around
+    # tau = 0 that opens downwards
+    return a*tau**4 + b*tau**2 + c
+
+def extrapolateE0(arr, type='quadratic'):
+    # Takes an Nx2 array (tau, E0)
+    # Returns the coefficients for the fitting function specified
+    if type == 'quadratic':
+        return curve_fit(fitFuncQuadratic_E, arr[:,0], arr[:,1])[0]
+    elif type == 'quartic':
+        return curve_fit(fitFuncQuartic_E, arr[:,0], arr[:,1])[0]
+    else:
+        raise Exception("Invalid fitting function type, please use quadratic or quartic")
+    
 class ChoiceMC(object):
     def __init__(self, m_max, P, g, MC_steps, N, Nskip=100, Nequilibrate=0, PIGS=False, T=1, B=1, V0=0., potentialField='transverse'):
         """
