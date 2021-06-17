@@ -27,7 +27,7 @@ except FileExistsError:
     pass
 
 # Setting up the variables to sweep over
-g_sweep = np.append(np.linspace(0.01, 2, 20), np.linspace(2.1,8,10))
+g_sweep = np.linspace(0.01, 4, 30)
 N_sweep = [2, 4, 8, 16, 32, 64]
 mMax_sweep = [1, 2, 5, 10, 25, 50]
 
@@ -103,25 +103,25 @@ for imMax, mMax in enumerate(mMax_sweep):
         # Plotting
         E_fig, E_ax = plt.subplots(1, 1, figsize=(8,5))
         E_ax.plot(energy[:,0], energy[:,1])
-        E_ax.set_xlabel('Interaction Strength')
-        E_ax.set_ylabel('Ground State Energy per Rotor')
-        E_ax.set_title('Ground State Energy versus Interaction Strength for ' + str(N) + " Rotors and an mMax of " + str(mMax))
+        E_ax.set_xlabel('g')
+        E_ax.set_ylabel(r'$E_0$'+' Per Interaction')
+        E_ax.annotate('N = ' + str(N) + r'$;M_{Max} = $' + str(round(mMax,3)), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
         E_fig.tight_layout()
         E_fig.savefig(os.path.join(data_path,"Energy_N" + str(N) + "_mMax" + str(mMax) + ".png"))
         
         V_fig, V_ax = plt.subplots(1, 1, figsize=(8,5))
         V_ax.plot(potential[:,0], potential[:,1])
-        V_ax.set_xlabel('Interaction Strength')
-        V_ax.set_ylabel('Potential Energy per Rotor')
-        V_ax.set_title('Potential Energy versus Interaction Strength for ' + str(N) + " Rotors and an mMax of " + str(mMax))
+        V_ax.set_xlabel('g')
+        V_ax.set_ylabel('<V> Per Interaction')
+        V_ax.annotate('N = ' + str(N) + r'$;M_{Max} = $' + str(round(mMax,3)), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
         V_fig.tight_layout()
         V_fig.savefig(os.path.join(data_path,"Potential_N" + str(N) + "_mMax" + str(mMax) + ".png"))
         
         O_fig, O_ax = plt.subplots(1, 1, figsize=(8,5))
         O_ax.plot(correlations[:,0], correlations[:,1])
-        O_ax.set_xlabel('Interaction Strength')
+        O_ax.set_xlabel('g')
         O_ax.set_ylabel('Orientational Correlation')
-        O_ax.set_title('Orientational Correlation versus Interaction Strength for ' + str(N) + " Rotors and an mMax of " + str(mMax))
+        O_ax.annotate('N = ' + str(N) + r'$;M_{Max} = $' + str(round(mMax,3)), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
         O_fig.tight_layout()
         O_fig.savefig(os.path.join(data_path,"OrientationCorrelation_N" + str(N) + "_mMax" + str(mMax) + ".png"))
         
@@ -139,9 +139,9 @@ for imMax, mMax in enumerate(mMax_sweep):
     E_fig, E_ax = plt.subplots(1, 1, figsize=(8,5))
     for N in N_sweep_dict_E:
         E_ax.plot(N_sweep_dict_E[N][:,0], N_sweep_dict_E[N][:,1], label="N = "+str(N))
-    E_ax.set_xlabel('Interaction Strength')
-    E_ax.set_ylabel('Ground State Energy per Rotor')
-    E_ax.set_title('Ground State Energy versus Interaction Strength for an mMax of ' + str(mMax))
+    E_ax.set_xlabel('g')
+    E_ax.set_ylabel(r'$E_0$'+' Per Interaction')
+    E_ax.annotate(r'$M_{Max} = $' + str(round(mMax,3)), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
     E_ax.legend()
     E_fig.tight_layout()
     E_fig.savefig("NSweep_Energy_mMax" + str(mMax) + ".png")
@@ -149,9 +149,9 @@ for imMax, mMax in enumerate(mMax_sweep):
     V_fig, V_ax = plt.subplots(1, 1, figsize=(8,5))
     for N in N_sweep_dict_V:
         V_ax.plot(N_sweep_dict_V[N][:,0], N_sweep_dict_V[N][:,1], label="N = "+str(N))
-    V_ax.set_xlabel('Interaction Strength')
-    V_ax.set_ylabel('Potential Energy per Rotor')
-    V_ax.set_title('Potential Energy versus Interaction Strength for an mMax of ' + str(mMax))
+    V_ax.set_xlabel('g')
+    V_ax.set_ylabel('<V> Per Interaction')
+    V_ax.annotate(r'$M_{Max} = $' + str(round(mMax,3)), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
     V_ax.legend()
     V_fig.tight_layout()
     V_fig.savefig("NSweep_Potential_mMax" + str(mMax) + ".png")
@@ -159,9 +159,9 @@ for imMax, mMax in enumerate(mMax_sweep):
     O_fig, O_ax = plt.subplots(1, 1, figsize=(8,5))
     for N in N_sweep_dict_O:
         O_ax.plot(N_sweep_dict_O[N][:,0], N_sweep_dict_O[N][:,1], label="N = "+str(N))
-    O_ax.set_xlabel('Interaction Strength')
-    O_ax.set_ylabel('Orientational Correlation per Rotor')
-    O_ax.set_title('Orientational Correlation versus Interaction Strength for an mMax of ' + str(mMax))
+    O_ax.set_xlabel('g')
+    O_ax.set_ylabel('Orientational Correlation')
+    O_ax.annotate(r'$M_{Max} = $' + str(round(mMax,3)), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
     O_ax.legend()
     O_fig.tight_layout()
     O_fig.savefig("NSweep_OrientationalCorrelation_mMax" + str(mMax) + ".png")
@@ -179,9 +179,9 @@ for N in N_sweep:
     E_fig, E_ax = plt.subplots(1, 1, figsize=(8,5))
     for mMax in mMax_sweep_dict_E:
         E_ax.plot(mMax_sweep_dict_E[mMax][N][:,0], mMax_sweep_dict_E[mMax][N][:,1], label="mMax = "+str(mMax))
-    E_ax.set_xlabel('Interaction Strength')
-    E_ax.set_ylabel('Ground State Energy per Rotor')
-    E_ax.set_title('Ground State Energy versus Interaction Strength for ' + str(N) + " Rotors")
+    E_ax.set_xlabel('g')
+    E_ax.set_ylabel(r'$E_0$'+' Per Interaction')
+    E_ax.annotate('N = ' + str(N), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
     E_ax.legend()
     E_fig.tight_layout()
     E_fig.savefig("mMaxSweep_Energy_N" + str(N) + ".png")
@@ -190,9 +190,9 @@ for N in N_sweep:
     V_fig, V_ax = plt.subplots(1, 1, figsize=(8,5))
     for mMax in mMax_sweep_dict_V:
         V_ax.plot(mMax_sweep_dict_V[mMax][N][:,0], mMax_sweep_dict_V[mMax][N][:,1], label="mMax = "+str(mMax))
-    V_ax.set_xlabel('Interaction Strength')
-    V_ax.set_ylabel('Potential Energy per Rotor')
-    V_ax.set_title('Potential Energy versus Interaction Strength for ' + str(N) + " Rotors")
+    V_ax.set_xlabel('g')
+    V_ax.set_ylabel('<V> Per Interaction')
+    V_ax.annotate('N = ' + str(N), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
     V_ax.legend()
     V_fig.tight_layout()
     V_fig.savefig("mMaxSweep_Potential_N" + str(N) + ".png")
@@ -201,22 +201,22 @@ for N in N_sweep:
     O_fig, O_ax = plt.subplots(1, 1, figsize=(8,5))
     for mMax in mMax_sweep_dict_O:
         O_ax.plot(mMax_sweep_dict_O[mMax][N][:,0], mMax_sweep_dict_O[mMax][N][:,1], label="mMax = "+str(mMax))
-    O_ax.set_xlabel('Interaction Strength')
-    O_ax.set_ylabel('Orientational Correlation per Rotor')
-    O_ax.set_title('Orientational Correlation versus Interaction Strength for ' + str(N) + " Rotors")
+    O_ax.set_xlabel('g')
+    O_ax.set_ylabel('Orientational Correlation')
+    O_ax.annotate('N = ' + str(N), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
     O_ax.legend()
     O_fig.tight_layout()
     O_fig.savefig("mMaxSweep_OrientationalCorrelation_N" + str(N) + ".png")
 
-# Plotting the simulation time with varied mMax
+# Plotting the simulation time with varied N
 numRows = int(np.ceil(len(N_sweep)/3))
 t_fig = plt.figure(figsize=(10,4*numRows))
 for iN, N in enumerate(N_sweep):
     t_ax = t_fig.add_subplot(numRows, 3, iN+1)
     t_ax.plot(time_arr[time_arr[:,1] == N][:,0], time_arr[time_arr[:,1] == N][:,2])
-    t_ax.set_xlabel('mMax')
+    t_ax.set_xlabel(r'$M_{Max}$')
     t_ax.set_ylabel('Time (seconds)')
-    t_ax.set_title('N = ' + str(N))
+    t_ax.annotate('N = ' + str(N), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
 t_fig.suptitle("Simulation Time versus mMax for a Varied Number of Rotors")
 t_fig.tight_layout()
 t_fig.savefig("mMaxSweep_Timing.png")
@@ -227,12 +227,23 @@ t_fig = plt.figure(figsize=(10,4*numRows))
 for imMax, mMax in enumerate(mMax_sweep):
     t_ax = t_fig.add_subplot(numRows, 3, imMax+1)
     t_ax.plot(time_arr[time_arr[:,0] == mMax][:,1], time_arr[time_arr[:,0] == mMax][:,2])
-    t_ax.set_xlabel('Number of Rotors')
+    t_ax.set_xlabel('N')
     t_ax.set_ylabel('Time (seconds)')
-    t_ax.set_title('mMax = ' + str(mMax))
+    t_ax.annotate(r'$M_{Max} = $' + str(mMax), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
 t_fig.suptitle("Simulation Time versus the Number of Rotors for a Varied mMax")
 t_fig.tight_layout()
 t_fig.savefig("NSweep_Timing.png")
+
+# Plotting the difference in simulation time from an mMax of 5
+fig, ax = plt.subplots(1, 1, figsize=(8,5))
+for imMax, mMax in enumerate(mMax_sweep):
+    if mMax >= 5:
+        ax.plot(time_arr[time_arr[:,0] == mMax][:,1], time_arr[time_arr[:,0] == mMax][:,2]-time_arr[time_arr[:,0] == 5][:,2], label=r'$M_{Max} = $' + str(mMax))
+ax.set_xlabel('N')
+ax.set_ylabel('Increase in Time from ' + r'$M_{Max}$' + ' = 5 (seconds)')
+ax.legend()
+fig.tight_layout()
+fig.savefig("NSweep_TimingDifferential.png")
 
 plt.close("all")
 

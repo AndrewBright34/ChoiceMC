@@ -73,7 +73,6 @@ for tau in tau_sweep:
     
         # Plotting
         E_fig, E_ax = plt.subplots(1, 1, figsize=(8,5))
-        E_ax.plot()
         E_ax.errorbar(energy[:,0], energy[:,1], energy[:,2], label='PIGS', fmt='.-', capsize=3)
         E_ax.set_xlabel(r'$\beta (K^{-1})$')
         E_ax.set_ylabel(r'$E_0$'+' Per Interaction')
