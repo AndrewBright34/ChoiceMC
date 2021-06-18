@@ -8,5 +8,6 @@ PIMC.createRhoVij()
 # Performing MC integration
 PIMC.runMC(averagePotential = True, averageEnergy = True, orientationalCorrelations = True)
 # Saving plots of the histograms
-PIMC.plotHisto('left', "middle", 'right')
+PIMC.plotHisto_total('left', 'middle', 'right', 'initial')
+PIMC.plotHisto_N('PIMC', 'middle')
 print('<E> = ', PIMC.E_MC)

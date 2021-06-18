@@ -86,8 +86,8 @@ for imMax, mMax in enumerate(mMax_sweep):
                 time_arr[(imMax*len(mMax_sweep)+iN),:] = [mMax, N, MCtime]
                 
             # Saving plots of the histograms
-            PIMC.plotHisto('left', "middle", 'right')
-            PIMC.plotHisto('PIMC')
+            PIMC.plotHisto_total('left', "middle", 'right')
+            PIMC.plotHisto_total('PIMC')
             
             # Storing and saving the data from the current run
             energy[ig,:] = [g, PIMC.E_MC]

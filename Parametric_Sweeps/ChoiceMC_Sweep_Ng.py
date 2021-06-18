@@ -78,8 +78,8 @@ for ig, g in enumerate(g_sweep):
         # Performing MC integration
         PIMC.runMC()
         # Saving plots of the histograms
-        PIMC.plotHisto('left', "middle", 'right')
-        PIMC.plotHisto('PIMC')
+        PIMC.plotHisto_total('left', "middle", 'right')
+        PIMC.plotHisto_total('PIMC')
         
         # Storing and saving the data from the current run
         arrE[iP,:] = [PIMC.tau, PIMC.E_MC, PIMC.E_stdError_MC]

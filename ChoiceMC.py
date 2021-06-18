@@ -636,10 +636,19 @@ class ChoiceMC(object):
             during a specific MC step.
 
         """
-        histo_L=np.zeros(self.Ngrid,float)
-        histo_R=np.zeros(self.Ngrid,float)
-        histo_middle=np.zeros(self.Ngrid,float)
-        histo_pimc=np.zeros(self.Ngrid,float)
+        
+        # Creating histograms to store each rotor's distributions
+        histoLeft_N = {}
+        histoRight_N = {}
+        histoMiddle_N = {}
+        histoPIMC_N = {}
+        for n in range(self.N):
+            histoLeft_N.update({n: np.zeros(self.Ngrid,float)})
+            histoRight_N.update({n: np.zeros(self.Ngrid,float)})
+            histoMiddle_N.update({n: np.zeros(self.Ngrid,float)})
+            histoPIMC_N.update({n: np.zeros(self.Ngrid,float)})
+            
+        # Creating a histogram that stores the initial distribution
         histo_initial=np.zeros(self.Ngrid,float)
         
         if not hasattr(self, 'rho_phi'):
@@ -744,7 +753,7 @@ class ChoiceMC(object):
                     # Rejection free sampling
                     path_phi[i,p] = index
         
-                    histo_pimc[path_phi[i,p]]+=1.
+                    histoPIMC_N[i][path_phi[i,p]]+=1.
                     
                     # Updating the estimators, these only look at the interactions to the left to avoid
                     # double counting and to ensure that the interactions being added are from the current MC Step
@@ -785,10 +794,12 @@ class ChoiceMC(object):
                     traj_out.write(str(path_phi[i,self.P-1]*self.delta_phi)+' ')
                     traj_out.write(str(path_phi[i,P_middle]*self.delta_phi)+' ') #middle bead
                     traj_out.write('\n')
-                    
-                histo_L[path_phi[i,0]]+=1.
-                histo_R[path_phi[i,self.P-1]]+=1.
-                histo_middle[path_phi[i,P_middle]]+=1.
+                
+                # Adding to the histogram counts.
+                histoLeft_N[i][path_phi[i,0]]+=1.
+                histoRight_N[i][path_phi[i,self.P-1]]+=1.
+                histoMiddle_N[i][path_phi[i,P_middle]]+=1.
+                
         # End of rotor loop
         traj_out.close()
         
@@ -821,26 +832,60 @@ class ChoiceMC(object):
             print('ei.ej_SE = ', stdErreiej)
             self.eiej_MC = meaneiej
             self.eiej_stdError_MC = stdErreiej
+        
+        # Creating arrays to store the overall system's distribution
+        histoPIMC_total=np.zeros(self.Ngrid,float)
+        histoMiddle_total=np.zeros(self.Ngrid,float)
+        histoLeft_total=np.zeros(self.Ngrid,float)
+        histoRight_total=np.zeros(self.Ngrid,float)
+        
+        # Saving the individual rotor distributions and accumulating the total distributions
+        self.histo_N = {}
+        for n in range(self.N):
+            histoPIMC_total += histoPIMC_N[n]
+            histoMiddle_total += histoMiddle_N[n]
+            histoLeft_total += histoLeft_N[n]
+            histoRight_total += histoRight_N[n]
 
-        self.histo = np.zeros((self.Ngrid,6))
-        histo_out=open(os.path.join(self.path,'histo_A_P'+str(self.P)+'_N'+str(self.N)),'w')
+            histoN_arr = np.zeros((self.Ngrid,5))
+            histoN_out = open(os.path.join(self.path,'histo_N'+str(n)),'w')
+            for i in range(self.Ngrid):
+                histoN_out.write(str(i*self.delta_phi) + ' ' +
+                                 str(histoPIMC_N[n][i]/(self.MC_steps*self.P)/self.delta_phi) + ' ' +
+                                 str(histoMiddle_N[n][i]/(self.MC_steps)/self.delta_phi) + ' ' +
+                                 str(histoLeft_N[n][i]/(self.MC_steps)/self.delta_phi) + ' ' +
+                                 str(histoRight_N[n][i]/(self.MC_steps)/self.delta_phi) +'\n')
+                histoN_arr[i,:] = [i*self.delta_phi,
+                                   histoPIMC_N[n][i]/(self.MC_steps*self.P)/self.delta_phi,
+                                   histoMiddle_N[n][i]/(self.MC_steps)/self.delta_phi,
+                                   histoLeft_N[n][i]/(self.MC_steps)/self.delta_phi,
+                                   histoRight_N[n][i]/(self.MC_steps)/self.delta_phi]
+            self.histo_N.update({n: histoN_arr})
+            histoN_out.close()   
+            
+        # Saving the overall and initial distributions
+        self.histo_total = np.zeros((self.Ngrid,5))
+        self.histo_initial = np.zeros((self.Ngrid,2))
+        histo_out = open(os.path.join(self.path,'histo_test_total'),'w')
+        histo_init_out = open(os.path.join(self.path,'histo_initial'),'w')
         for i in range(self.Ngrid):
             histo_out.write(str(i*self.delta_phi) + ' ' +
-                            str(histo_pimc[i]/(self.MC_steps*self.N*self.P)/self.delta_phi) + ' ' +
-                            str(histo_middle[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                            str(histo_L[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                            str(histo_R[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                            str(histo_initial[i]/(self.N*self.P)/self.delta_phi)+'\n')
-            self.histo[i,:] = [i*self.delta_phi, 
-                              histo_pimc[i]/(self.MC_steps*self.N*self.P)/self.delta_phi,
-                              histo_middle[i]/(self.MC_steps*self.N)/self.delta_phi,
-                              histo_L[i]/(self.MC_steps*self.N)/self.delta_phi,
-                              histo_R[i]/(self.MC_steps*self.N)/self.delta_phi,
-                              histo_initial[i]/(self.N*self.P)/self.delta_phi]
-          
-        histo_out.close()                
-    
-    def runMCReplica(self):
+                            str(histoPIMC_total[i]/(self.MC_steps*self.N*self.P)/self.delta_phi) + ' ' +
+                            str(histoMiddle_total[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
+                            str(histoLeft_total[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
+                            str(histoRight_total[i]/(self.MC_steps*self.N)/self.delta_phi) + '\n')
+            self.histo_total[i,:] = [i*self.delta_phi, 
+                                    histoPIMC_total[i]/(self.MC_steps*self.N*self.P)/self.delta_phi,
+                                    histoMiddle_total[i]/(self.MC_steps*self.N)/self.delta_phi,
+                                    histoLeft_total[i]/(self.MC_steps*self.N)/self.delta_phi,
+                                    histoRight_total[i]/(self.MC_steps*self.N)/self.delta_phi]
+            histo_init_out.write(str(i*self.delta_phi) + ' ' + 
+                                 str(histo_initial[i]/(self.N*self.P)/self.delta_phi)+'\n')
+            self.histo_initial[i,:] = [i*self.delta_phi,
+                                       histo_initial[i]/(self.N*self.P)/self.delta_phi] 
+        histo_out.close()
+        
+    def runMCReplica(self, ratioTrick=False):
         """
         Performs the monte carlo integration to simulate the system with entanglement considered. This employs
         the replica trick and the extended ensemble to do so.
@@ -870,14 +915,22 @@ class ChoiceMC(object):
             during a specific MC step.
 
         """
-        histo_L=np.zeros(self.Ngrid,float)
-        histo_R=np.zeros(self.Ngrid,float)
-        histo_middle=np.zeros(self.Ngrid,float)
-        histo_pimc=np.zeros(self.Ngrid,float)
+         # Creating histograms to store each rotor's distributions
+        histoLeft_N = {}
+        histoRight_N = {}
+        histoMiddle_N = {}
+        histoPIMC_N = {}
+        for n in range(self.N):
+            histoLeft_N.update({n: np.zeros(self.Ngrid,float)})
+            histoRight_N.update({n: np.zeros(self.Ngrid,float)})
+            histoMiddle_N.update({n: np.zeros(self.Ngrid,float)})
+            histoPIMC_N.update({n: np.zeros(self.Ngrid,float)})
+            
+        # Creating a histogram that stores the initial distribution
         histo_initial=np.zeros(self.Ngrid,float)
         
-        #############################################################
-        # Add check for even number of rotors, if the ratio trick isn't being employed
+        if not ratioTrick and (self.N//2 != self.N/2):
+            raise Exception("An even number of rotors must be used for partitioning if the replica trick is not enabled")
         
         if not hasattr(self, 'rho_phi'):
             self.createFreeRhoMarx()
@@ -1057,7 +1110,7 @@ class ChoiceMC(object):
                     path_phi[i,p] = index
                     path_phi_replica[i,p] = index_replica
                     
-                    histo_pimc[path_phi[i,p]]+=1.
+                    histoPIMC_N[i][path_phi[i,p]]+=1.
                     
                 if (n%self.Nskip==0):
                     traj_out.write(str(path_phi[i,0]*self.delta_phi)+' ')
@@ -1065,9 +1118,10 @@ class ChoiceMC(object):
                     traj_out.write(str(path_phi[i,P_middle]*self.delta_phi)+' ') #middle bead
                     traj_out.write('\n')
                     
-                histo_L[path_phi[i,0]]+=1.
-                histo_R[path_phi[i,self.P-1]]+=1.
-                histo_middle[path_phi[i,P_middle]]+=1.
+                # Adding to the histogram counts.
+                histoLeft_N[i][path_phi[i,0]]+=1.
+                histoRight_N[i][path_phi[i,self.P-1]]+=1.
+                histoMiddle_N[i][path_phi[i,P_middle]]+=1.
             
             # Metropolis critereon
             
@@ -1138,22 +1192,56 @@ class ChoiceMC(object):
         
         print('S2 = ', str(self.S2))
         
-        self.histo = np.zeros((self.Ngrid,6))
-        histo_out=open(os.path.join(self.path,'histo_A_P'+str(self.P)+'_N'+str(self.N)),'w')
+        # Creating arrays to store the overall system's distribution
+        histoPIMC_total=np.zeros(self.Ngrid,float)
+        histoMiddle_total=np.zeros(self.Ngrid,float)
+        histoLeft_total=np.zeros(self.Ngrid,float)
+        histoRight_total=np.zeros(self.Ngrid,float)
+        
+        # Saving the individual rotor distributions and accumulating the total distributions
+        self.histo_N = {}
+        for n in range(self.N):
+            histoPIMC_total += histoPIMC_N[n]
+            histoMiddle_total += histoMiddle_N[n]
+            histoLeft_total += histoLeft_N[n]
+            histoRight_total += histoRight_N[n]
+
+            histoN_arr = np.zeros((self.Ngrid,5))
+            histoN_out = open(os.path.join(self.path,'histo_N'+str(n)),'w')
+            for i in range(self.Ngrid):
+                histoN_out.write(str(i*self.delta_phi) + ' ' +
+                                 str(histoPIMC_N[n][i]/(self.MC_steps*self.P)/self.delta_phi) + ' ' +
+                                 str(histoMiddle_N[n][i]/(self.MC_steps)/self.delta_phi) + ' ' +
+                                 str(histoLeft_N[n][i]/(self.MC_steps)/self.delta_phi) + ' ' +
+                                 str(histoRight_N[n][i]/(self.MC_steps)/self.delta_phi) +'\n')
+                histoN_arr[i,:] = [i*self.delta_phi,
+                                   histoPIMC_N[n][i]/(self.MC_steps*self.P)/self.delta_phi,
+                                   histoMiddle_N[n][i]/(self.MC_steps)/self.delta_phi,
+                                   histoLeft_N[n][i]/(self.MC_steps)/self.delta_phi,
+                                   histoRight_N[n][i]/(self.MC_steps)/self.delta_phi]
+            self.histo_N.update({n: histoN_arr})
+            histoN_out.close()   
+            
+        # Saving the overall and initial distributions
+        self.histo_total = np.zeros((self.Ngrid,5))
+        self.histo_initial = np.zeros((self.Ngrid,2))
+        histo_out = open(os.path.join(self.path,'histo_test_total'),'w')
+        histo_init_out = open(os.path.join(self.path,'histo_initial'),'w')
         for i in range(self.Ngrid):
             histo_out.write(str(i*self.delta_phi) + ' ' +
-                            str(histo_pimc[i]/(self.MC_steps*self.N*self.P)/self.delta_phi) + ' ' +
-                            str(histo_middle[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                            str(histo_L[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                            str(histo_R[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                            str(histo_initial[i]/(self.N*self.P)/self.delta_phi)+'\n')
-            self.histo[i,:] = [i*self.delta_phi, 
-                              histo_pimc[i]/(self.MC_steps*self.N*self.P)/self.delta_phi,
-                              histo_middle[i]/(self.MC_steps*self.N)/self.delta_phi,
-                              histo_L[i]/(self.MC_steps*self.N)/self.delta_phi,
-                              histo_R[i]/(self.MC_steps*self.N)/self.delta_phi,
-                              histo_initial[i]/(self.N*self.P)/self.delta_phi]
-          
+                            str(histoPIMC_total[i]/(self.MC_steps*self.N*self.P)/self.delta_phi) + ' ' +
+                            str(histoMiddle_total[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
+                            str(histoLeft_total[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
+                            str(histoRight_total[i]/(self.MC_steps*self.N)/self.delta_phi) + '\n')
+            self.histo_total[i,:] = [i*self.delta_phi, 
+                                    histoPIMC_total[i]/(self.MC_steps*self.N*self.P)/self.delta_phi,
+                                    histoMiddle_total[i]/(self.MC_steps*self.N)/self.delta_phi,
+                                    histoLeft_total[i]/(self.MC_steps*self.N)/self.delta_phi,
+                                    histoRight_total[i]/(self.MC_steps*self.N)/self.delta_phi]
+            histo_init_out.write(str(i*self.delta_phi) + ' ' + 
+                                 str(histo_initial[i]/(self.N*self.P)/self.delta_phi)+'\n')
+            self.histo_initial[i,:] = [i*self.delta_phi,
+                                       histo_initial[i]/(self.N*self.P)/self.delta_phi] 
         histo_out.close()
         
     def plotRho(self, rhoList):
@@ -1203,10 +1291,11 @@ class ChoiceMC(object):
         table.scale(1,2.0)
         fig.tight_layout()
         fig.savefig(os.path.join(self.path, "DensityMatrices.png"))
+        plt.close('all')
     
-    def plotHisto(self, *args):
+    def plotHisto_total(self, *args):
         """
-        Plots and saves the specified histograms.
+        Plots and saves the specified histograms for the overall system.
         
         Parameters
         ----------
@@ -1217,22 +1306,30 @@ class ChoiceMC(object):
         
         Outputs
         -------
-        labels_Histograms.png: png file
+        labels_Histograms_total.png: png file
             Image of the plots of the histograms specified.
         """
-        if not hasattr(self, "histo"):
-            raise Warning("The histograms do not exist, please execute ChoiceMC.runMC()")
+        if not hasattr(self, "histo_total"):
+            raise Warning("The histograms do not exist, please execute ChoiceMC.runMC() or ChoiceMC.runMCReplica")
             return
         
         histo_dict = {"PIMC" : 1, 
                       "middle" : 2, 
                       "left" : 3, 
-                      "right" : 4, 
-                      "initial" : 5}
+                      "right" : 4,
+                      "initial": 5}
+            
+        for hist in args:
+            if hist not in histo_dict:
+                raise Exception("An invalid argument was input, please use PIMC, left, middle, right or initial")
+                
         fig_label = ""
         fig, (ax, ax_table) = plt.subplots(1, 2, gridspec_kw={"width_ratios": [5, 1]}, figsize=(8,5))
         for hist in args:
-            exec("ax.plot(self.histo[:,0],self.histo[:," + str(histo_dict[hist]) + "], label='" + hist + "')")
+            if hist == 'initial':
+                exec("ax.plot(self.histo_initial[:,0],self.histo_initial[:,1], label='" + hist + "')")
+            else:
+                exec("ax.plot(self.histo_total[:,0],self.histo_total[:," + str(histo_dict[hist]) + "], label='" + hist + "')")
             fig_label += hist + "_"   
         ax.set_xlabel('Phi')
         ax.set_ylabel('Probability Density')
@@ -1257,4 +1354,65 @@ class ChoiceMC(object):
         table.set_fontsize(9)
         table.scale(1,2.0)
         fig.tight_layout()
-        fig.savefig(os.path.join(self.path, fig_label + "Histograms.png"))
+        fig.savefig(os.path.join(self.path, fig_label + "Histograms_total.png"))
+        plt.close('all')
+        
+    def plotHisto_N(self, *args):
+        """
+        Plots and saves the specified histograms for each individual rotor.
+        
+        Parameters
+        ----------
+        *args : String
+            Keywords to determine which histograms to plot, for the overall 
+            PIMC, left, middle and right beads and the initial conditions.
+            Allowed choices: PIMC, left, middle, right.
+        
+        Outputs
+        -------
+        Histogram_label_N.png: png file
+            Image of the plots of the histograms for each individual rotor of the
+            specified bead.
+        """
+        if not hasattr(self, "histo_N"):
+            raise Warning("The histograms do not exist, please execute ChoiceMC.runMC() or ChoiceMC.runMCReplica")
+            return
+        
+        histo_dict = {"PIMC" : 1, 
+                      "middle" : 2, 
+                      "left" : 3, 
+                      "right" : 4}
+        
+        for hist in args:
+            if hist not in histo_dict:
+                raise Exception("An invalid argument was input, please use PIMC, left, middle or right")
+        
+        for hist in args:
+            fig, (ax, ax_table) = plt.subplots(1, 2, gridspec_kw={"width_ratios": [5, 1]}, figsize=(8,5))
+            for n in range(self.N):
+                exec("ax.plot(self.histo_N["+str(n)+"][:,0],self.histo_N["+str(n)+"][:," + str(histo_dict[hist]) + "], label='" + str(n) + "')")   
+            ax.set_xlabel('Phi')
+            ax.set_ylabel('Probability Density')
+            ax.set_title('Histograms')
+            ax.legend()
+            text = np.array([["Temperature", str(round(self.T,3)) + " K"],
+                            ["Number of\nGrid Points", str(self.Ngrid)],
+                            ["Number of\nBeads", str(self.P)],
+                            ["Number of\nMC Steps", str(self.MC_steps)],
+                            ["Number of\nRotors", str(self.N)],
+                            ["Interaction\nStrength", str(round(self.g,3))],
+                            ["Rotational\nConstant", str(round(self.B,3))],
+                            ["Skip Steps", str(self.Nskip)],
+                            ["Equilibration\nSteps", str(self.Nequilibrate)],
+                            ["PIGS", str(self.PIGS)],
+                            ["Potential (V0)", str(round(self.V0,3))]])
+            ax_table.axis("off")
+            table = ax_table.table(cellText=text, 
+                                   loc='center',
+                                   colWidths=[1.5, 1],
+                                   cellLoc='center')
+            table.set_fontsize(9)
+            table.scale(1,2.0)
+            fig.tight_layout()
+            fig.savefig(os.path.join(self.path, "Histogram_" + hist + "_N.png"))
+        plt.close('all')

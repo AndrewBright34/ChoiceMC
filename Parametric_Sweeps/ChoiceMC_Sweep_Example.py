@@ -91,8 +91,8 @@ for iN, N in enumerate(N_sweep):
         print("The previous iteration took " + str(round(tRunMC+tRhoVij+tFreeRho,3)) + " seconds")
         
         # Saving plots of the histograms
-        PIMC.plotHisto('left', "middle", 'right')
-        PIMC.plotHisto('PIMC')
+        PIMC.plotHisto_total('left', "middle", 'right')
+        PIMC.plotHisto_total('PIMC')
         
         # Storing and saving the data from the current run
         energy[ig,:] = [g, PIMC.E_MC]
@@ -201,8 +201,8 @@ for iN, N in enumerate(N_sweep):
     print("The previous iteration took " + str(round(tRunMC+tRhoVij+tFreeRho,3)) + " seconds")
     
     # Saving plots of the histograms
-    PIMC.plotHisto('left', "middle", 'right')
-    PIMC.plotHisto('PIMC')
+    PIMC.plotHisto_total('left', "middle", 'right')
+    PIMC.plotHisto_total('PIMC')
     
     # Closing the remaining open plots
     plt.close('all')
@@ -236,8 +236,8 @@ for imMax, mMax in enumerate(mMax_sweep):
     print("The previous iteration took " + str(round(tRunMC+tRhoVij+tFreeRho,3)) + " seconds")
     
     # Saving plots of the histograms
-    PIMC.plotHisto('left', "middle", 'right')
-    PIMC.plotHisto('PIMC')
+    PIMC.plotHisto_total('left', "middle", 'right')
+    PIMC.plotHisto_total('PIMC')
     
     # Closing the remaining open plots
     plt.close('all')
@@ -271,8 +271,8 @@ for iP, P in enumerate(P_sweep):
     print("The previous iteration took " + str(round(tRunMC+tRhoVij+tFreeRho,3)) + " seconds")
     
     # Saving plots of the histograms
-    PIMC.plotHisto('left', "middle", 'right')
-    PIMC.plotHisto('PIMC')
+    PIMC.plotHisto_total('left', "middle", 'right')
+    PIMC.plotHisto_total('PIMC')
     
     # Closing the remaining open plots
     plt.close('all')
@@ -306,8 +306,8 @@ for iMCSteps, MCSteps in enumerate(MCSteps_sweep):
     print("The previous iteration took " + str(round(tRunMC+tRhoVij+tFreeRho,3)) + " seconds")
     
     # Saving plots of the histograms
-    PIMC.plotHisto('left', "middle", 'right')
-    PIMC.plotHisto('PIMC')
+    PIMC.plotHisto_total('left', "middle", 'right')
+    PIMC.plotHisto_total('PIMC')
     
     # Closing the remaining open plots
     plt.close('all')
