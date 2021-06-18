@@ -593,7 +593,7 @@ class ChoiceMC(object):
             for j in range(self.Ngrid):
                 self.rhoVij[i,j] = np.exp(-self.tau * (Vij(i*self.delta_phi, j*self.delta_phi, self.g)))
     
-    def runMC(self, averagePotential = True, averageEnergy = True, orientationalCorrelations = True):
+    def runMC(self, averagePotential = True, averageEnergy = True, orientationalCorrelations = True, initialState='random'):
         """
         Performs the monte carlo integration to simulate the system.
         
@@ -608,6 +608,10 @@ class ChoiceMC(object):
         orientationalCorrelations : bool, optional
             Enables the tracking and calculation of the orientational correllations. 
             The default is True.
+        initialState : string, optional
+            Selects the distribution of the initial state of the system. The allowed
+            options are random, ordered_pi or ordered_0.
+            The default is random.
 
         Returns
         -------
@@ -664,17 +668,24 @@ class ChoiceMC(object):
         p_dist_end = gen_prob_dist_end(self.Ngrid, self.rho_phi) if self.PIGS == True else None
         
         path_phi=np.zeros((self.N,self.P),int) ## i  N => number of beads
-        for i in range(self.N):
-            for p in range(self.P): # set path at potential minimum
-                # Initial conditions
-                # All rotors have angle of pi
-                #path_phi[i,p]=int(self.Ngrid/2)
-                # All rotors have angle of 0
-                #path_phi[i,p]=0
-                # Rotors have random angles
-                path_phi[i,p]=np.random.randint(self.Ngrid)
-                histo_initial[path_phi[i,p]]+=1.
-            
+        
+        # Initial conditions
+        if initialState == 'random':
+            # Rotors have random angles
+            for i in range(self.N):
+                for p in range(self.P):
+                    path_phi[i,p]=np.random.randint(self.Ngrid)
+                    histo_initial[path_phi[i,p]]+=1.
+        elif initialState == 'ordered_0':
+            # All rotors have angle of 0
+            histo_initial[0] += 1.
+        elif initialState == 'ordered_pi':
+            # All rotors have angle of pi
+            path_phi += int(self.Ngrid/2)
+            histo_initial[int(self.Ngrid/2)] += 1.
+        else:
+            raise Exception("An invalid selection was made for the initial conditions, please use random, ordered_0 or ordered_pi")
+  
         traj_out=open(os.path.join(self.path,'traj_A.dat'),'w')
         
         # recommanded numpy random number initialization
@@ -885,12 +896,20 @@ class ChoiceMC(object):
                                        histo_initial[i]/(self.N*self.P)/self.delta_phi] 
         histo_out.close()
         
-    def runMCReplica(self, ratioTrick=False):
+    def runMCReplica(self, ratioTrick=False, initialState='random'):
         """
         Performs the monte carlo integration to simulate the system with entanglement considered. This employs
         the replica trick and the extended ensemble to do so.
         
-        ############################# TO ADD: Ratio trick
+        Parameters
+        ----------
+        ratioTrick : bool, optional
+            Enables the ratio trick. 
+            The default is False.
+        initialState : string, optional
+            Selects the distribution of the initial state of the system. The allowed
+            options are random, ordered_pi or ordered_0.
+            The default is random.
 
         Returns
         -------
@@ -947,17 +966,23 @@ class ChoiceMC(object):
         p_dist_end=gen_prob_dist_end(self.Ngrid, self.rho_phi)
         
         path_phi=np.zeros((self.N,self.P),int) ## i  N => number of beads
-        for i in range(self.N):
-            for p in range(self.P): # set path at potential minimum
-                # Initial conditions
-                # All rotors have angle of pi
-                #path_phi[i,p]=int(self.Ngrid/2)
-                # All rotors have angle of 0
-                #path_phi[i,p]=0
-                # Rotors have random angles
-                path_phi[i,p]=np.random.randint(self.Ngrid)
-                
-                histo_initial[path_phi[i,p]]+=1.
+        
+        # Initial conditions
+        if initialState == 'random':
+            # Rotors have random angles
+            for i in range(self.N):
+                for p in range(self.P):
+                    path_phi[i,p]=np.random.randint(self.Ngrid)
+                    histo_initial[path_phi[i,p]]+=1.
+        elif initialState == 'ordered_0':
+            # All rotors have angle of 0
+            histo_initial[0] += 1.
+        elif initialState == 'ordered_pi':
+            # All rotors have angle of pi
+            path_phi += int(self.Ngrid/2)
+            histo_initial[int(self.Ngrid/2)] += 1.
+        else:
+            raise Exception("An invalid selection was made for the initial conditions, please use random, ordered_0 or ordered_pi")
         
         # Make monte carlo into a function, divide into equilibration and production    
         
