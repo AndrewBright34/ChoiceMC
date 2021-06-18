@@ -303,6 +303,66 @@ class ChoiceMC(object):
         print('<ED E0> = ',self.E0_ED)
         self.eiej_ED = e1_dot_e2
         print('<ei.ej> = ',self.eiej_ED)
+      
+    def runNMM(self):
+        """
+        Solves for the ground state energy using the NMM method. This method can
+        only be used for a two rotor system. Warning, this method scales with Ngrid^2
+        and can become quickly intractable.
+        
+        Returns
+        -------
+        self.E0_nmm: float
+            Ground state energy calculated by the NMM method
+        """
+        # Unpacking class attributes into variables
+        size = self.Ngrid
+        size2 = self.Ngrid**2
+        tau = self.tau
+        
+        # Creating the 1 body free rho by the Marx method
+        self.createFreeRhoMarx()
+        rho_phi = self.rho_phi
+        rho_free_1body = np.zeros((size,size), float)
+        for i1 in range(size):
+            for i1p in range(size):
+                index = i1-i1p
+                if index < 0:
+                    index += size
+                rho_free_1body[i1, i1p] = rho_phi[index]
+        
+        # Creating rho potential and the 2 body free rho
+        rho_potential = np.zeros((size2,size2), float)
+        potential = np.zeros(size2, float)
+        rho_free_2body = np.zeros((size2,size2), float)
+        for i1 in range(size):
+            for i2 in range(size):
+                rho_potential[i1*size+i2,i1*size+i2] = np.exp(-0.5*tau*Vij(i1*self.delta_phi, i2*self.delta_phi, self.g))
+                potential[i1*size+i2] = Vij(i1*self.delta_phi, i2*self.delta_phi, self.g)
+                for i1p in range(size):
+                    for i2p in range(size):
+                        rho_free_2body[i1*size+i2,i1p*size+i2p] = rho_free_1body[i1,i1p] * rho_free_1body[i2,i2p]
+        
+        # Constructing the high temperature density matrix
+        rho_tau=np.zeros((size2,size2),float)
+        rho_tau = np.dot(rho_potential, np.dot(rho_free_2body, rho_potential))
+        
+        # Forming the density matrix via matrix multiplication        
+        rho_beta=rho_tau.copy()
+        for k in range(self.P-1):
+            rho_beta=(self.delta_phi**2)*np.dot(rho_beta,rho_tau)
+        
+        # Finding the ground state energy of the 
+        E0_nmm=0.
+        rho_dot_V=np.dot(rho_beta,potential)
+        Z0=0. # pigs pseudo Z
+        for i in range(size2):
+            E0_nmm += rho_dot_V[i]
+            for ip in range(size2):
+                Z0 += rho_beta[i,ip]
+        E0_nmm/=Z0
+        print('NMM E0 = ',E0_nmm)
+        self.E0_nmm = E0_nmm    
     
     def createFreeRhoMarx(self):
         """
@@ -497,6 +557,8 @@ class ChoiceMC(object):
         
         Returns
         -------
+        self.potential: numpy array
+            Nx2 array containing the potential for the rotors
         self.rho_nmm: numpy array
             Nx2 numpy array with the phi value in the 1st column and density 
             matrix values in the 2nd column
@@ -511,16 +573,12 @@ class ChoiceMC(object):
             Ground state energy calculated by the NMM method
         """
         rho_free=np.zeros((self.Ngrid,self.Ngrid),float)
-        rho_potential=np.zeros((self.Ngrid,self.Ngrid),float)
-        potential=np.zeros((self.Ngrid,self.Ngrid),float)
-    
+        rho_potential=np.zeros(self.Ngrid,float)
+        potential=np.zeros(self.Ngrid,float)
         for i in range(self.Ngrid):
-            # External field interaction
-            potential[i,i] += self.potFunc(float(i)*self.delta_phi,self.V0)
+            potential[i] = self.potFunc(float(i)*self.delta_phi,self.V0)
+            rho_potential[i]=np.exp(-(self.tau/2.)*potential[i])
             for ip in range(self.Ngrid):
-                # Nearest neighbour interaction
-                potential[i,ip] += Vij(i*self.delta_phi, ip*self.delta_phi, self.g)
-                rho_potential[i]=np.exp(-(self.tau/2.)*potential[i, ip])
                 integral=0.
                 dphi=float(i-ip)*self.delta_phi
                 for m in range(self.m_max):
@@ -530,11 +588,19 @@ class ChoiceMC(object):
                 integral*=np.sqrt(1./(4.*np.pi*self.B*self.tau))
                 rho_free[i,ip]=integral
         
+        self.potential = np.zeros((self.Ngrid, 2),float)
+        #output potential to a file
+        potential_out=open(os.path.join(self.path,'V'),'w')
+        for i in range(self.Ngrid):
+                potential_out.write(str(float(i)*self.delta_phi)+' '+str(potential[i])+'\n')
+                self.potential[i,:] = [float(i)*self.delta_phi, potential[i]]
+        potential_out.close()
+        
         # construct the high temperature density matrix
         rho_tau=np.zeros((self.Ngrid,self.Ngrid),float)
         for i1 in range(self.Ngrid):
                 for i2 in range(self.Ngrid):
-                        rho_tau[i1,i2]=rho_potential[i1,i2]*rho_free[i1,i2]*rho_potential[i1,i2]
+                        rho_tau[i1,i2]=rho_potential[i1]*rho_free[i1,i2]*rho_potential[i2]
         
         # form the density matrix via matrix multiplication        
         rho_beta=rho_tau.copy()
@@ -551,7 +617,7 @@ class ChoiceMC(object):
         self.rho_nmm = np.zeros((self.Ngrid, 2), float)
         self.free_rho_nmm = np.zeros((self.Ngrid, 2), float)
         for i in range(self.Ngrid):
-            E0_nmm += rho_dot_V[i,i]
+            E0_nmm += rho_dot_V[i]
             rho_nmm_out.write(str(i*self.delta_phi)+ ' '+str(rho_beta[i,i]/Z_nmm)+'\n')
             self.rho_nmm[i,:] = [i*self.delta_phi, rho_beta[i,i]/Z_nmm]
             self.free_rho_nmm[i,:] = [i*self.delta_phi, rho_free[i,i]/Z_free_nmm]
@@ -569,7 +635,7 @@ class ChoiceMC(object):
         E0_vs_tau_out.write(str(self.tau)+' '+str(E0_nmm)+'\n')
         E0_vs_tau_out.close()
         print(' ')
-    
+        
     def createRhoVij(self):
         """
         Creates the rhoVij matrix for the nearest neighbour interactions of the system
@@ -753,7 +819,7 @@ class ChoiceMC(object):
                         # Periodic BC for the rightmost rotor, doesn't apply to the 2 rotor system
                         for ir in range(len(prob_full)):
                             prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
-        
+                    
                     # Normalize
                     norm_pro=0.
                     for ir in range(len(prob_full)):
