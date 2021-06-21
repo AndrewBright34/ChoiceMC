@@ -43,9 +43,9 @@ for imMax, mMax in enumerate(mMax_sweep):
     
     # Creating arrays to store the E, V and O versus g data
     energy = np.zeros((len(g_sweep),2), float)
-    energy_out = open(os.path.join(data_path,"Energy_Mmax" + str(mMax) + '.dat'),'w')
+    energy_out = open(os.path.join(data_path,"Energy_mMax" + str(mMax) + '.dat'),'w')
     correlations = np.zeros((len(g_sweep),2), float)
-    correlations_out = open(os.path.join(data_path,"OrientationalCorrelation_Mmax" + str(mMax) + '.dat'),'w')
+    correlations_out = open(os.path.join(data_path,"OrienCorr_mMax" + str(mMax) + '.dat'),'w')
     for ig, g in enumerate(g_sweep):
         print("------------------------------------------------")
         print("Starting g = " + str(g))
@@ -81,7 +81,7 @@ for imMax, mMax in enumerate(mMax_sweep):
     O_ax.minorticks_on()
     O_ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
     O_fig.tight_layout()
-    O_fig.savefig(os.path.join(data_path,"OrientationalCorrelation_mMax" + str(mMax) + ".png"))
+    O_fig.savefig(os.path.join(data_path,"OrienCorr_mMax" + str(mMax) + ".png"))
         
     mMax_sweep_dict_E.update({mMax: energy})
     mMax_sweep_dict_O.update({mMax: correlations})
@@ -126,10 +126,10 @@ for i, mMax in enumerate(mMax_sweep_dict_E):
     if i+1 == 2*((len(mMax_sweep)+1)//2) or i+1 == 2*((len(mMax_sweep)+1)//2)-1:
         ax.set_xlabel('g')    
 O_fig.tight_layout()
-O_fig.savefig("OrientationalCorrelation_GSweep.png")
+O_fig.savefig("OrienCorr_GSweep.png")
 
 
-# Reorganizing data to plot E0 versus Mmax for convergence
+# Reorganizing data to plot E0 versus mMax for convergence
 g_vals = [0.1, 1., 2., 4.]
 g_dict_E = {}
 g_dict_O = {}
@@ -176,7 +176,7 @@ for i, g in enumerate(g_dict_O):
     if i+1 == 2*((len(g_vals)+1)//2) or i+1 == 2*((len(g_vals)+1)//2)-1:
         ax.set_xlabel(r'$M_{Max}$')    
 O_fig.tight_layout()
-O_fig.savefig("OrientationalCorrelation_mMaxSweep.png")
+O_fig.savefig("OrienCorr_mMaxSweep.png")
 
 plt.close("all")
     
