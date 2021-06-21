@@ -300,9 +300,9 @@ class ChoiceMC(object):
                         e1_dot_e2 += evecs[m1*size + m2,0]*evecs[m1p*size + m2p,0]*(-1*sin_mmp[m1,m1p]*sin_mmp[m2,m2p] + cos_mmp[m1,m1p]*cos_mmp[m2,m2p])
                         # <0|m1 m2> <m1 m2|e1.e2|m1p m2p> <m1p m2p|0> = <0|e1.e2|0>
         self.E0_ED = E0
-        print('<ED E0> = ',self.E0_ED)
+        print('E0_ED = ',self.E0_ED)
         self.eiej_ED = e1_dot_e2
-        print('<ei.ej> = ',self.eiej_ED)
+        print('ED <ei.ej> = ',self.eiej_ED)
       
     def runNMM(self):
         """
@@ -317,6 +317,10 @@ class ChoiceMC(object):
         self.eiej_NMM: float
             The orientational correlation calculated by the NMM method.
         """
+        # Throwing a warning if the MC object currently being tested does not have 2 rotors
+        if self.N != 2:
+            raise Warning("The exact diagonalization method can only handle 2 rotors and the current MC simulation is not being performed with 2 rotors.")
+        
         # Unpacking class attributes into variables
         size = self.Ngrid
         size2 = self.Ngrid**2
@@ -352,9 +356,10 @@ class ChoiceMC(object):
         # Forming the density matrix via matrix multiplication        
         rho_beta=rho_tau.copy()
         rho_beta_over2=rho_tau.copy()
-        for k in range(self.P-1):
+        
+        for k in range(self.P-2):
             rho_beta=(self.delta_phi**2)*np.dot(rho_beta,rho_tau)
-        for k in range(int((self.P-1)/2)):
+        for k in range(int((self.P-1)/2 - 1)):
             rho_beta_over2=(self.delta_phi**2)*np.dot(rho_beta_over2,rho_tau)
         rho_beta_over2_e1_e2=rho_beta_over2.copy()
         
@@ -383,9 +388,10 @@ class ChoiceMC(object):
                 e1_dot_e2+=rhobeta2_e1e2_rhobeta2[i,ip]
                 Z0 += rho_beta[i,ip]
         E0_nmm/=Z0
+        
         self.E0_NMM = E0_nmm    
         self.eiej_NMM = e1_dot_e2/Z0
-        print('NMM E0 = ', E0_nmm)
+        print('E0_NMM = ', E0_nmm)
         print('NMM <e1.e2>= ', self.eiej_NMM)
     
     def createFreeRhoMarx(self):
