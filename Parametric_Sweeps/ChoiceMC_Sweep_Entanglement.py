@@ -31,7 +31,7 @@ for ig, g in enumerate(g_sweep):
     print("Starting g = " + str(g))
     
     # Creating a ChoiceMC object for the current iteration
-    PIMC = ChoiceMC(m_max=5, P=9, g=g, MC_steps=1000000, N=N, PIGS=True, Nskip=100, Nequilibrate=100, t=0.5)
+    PIMC = ChoiceMC(m_max=5, P=9, g=g, MC_steps=1000000, N=N, PIGS=True, Nskip=100, Nequilibrate=100, T=0.5)
     # Creating the probability density matrix for each rotor
     PIMC.createFreeRhoMarx()
     # Creating the probability density matrix for nearest neighbour interactions
