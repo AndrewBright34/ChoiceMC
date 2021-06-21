@@ -12,9 +12,9 @@ import time
 import os
 parent_dir = os.getcwd()
 # Setting up the variables to sweep over, these keep tau at a constant 0.0015
-tau_sweep = [0.05, 0.1]
+tau_sweep = [0.1, 0.15, 0.2]
 g_sweep = [0.1, 1., 2., 4.]
-P_sweep = [3, 5, 7, 9, 11, 13, 15, 19, 23, 27, 31, 35]
+P_sweep = range(1,42,2)
 N = 2
 for tau in tau_sweep:
     # Making a folder to store the current test

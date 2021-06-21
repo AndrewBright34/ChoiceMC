@@ -13,11 +13,11 @@ import os
 parent_dir = os.getcwd()
 
 # Parameters
-# This temperature results in beta of 1.5, which was determined to relax the system to the ground state
-T = 2./3.
+# This temperature results in beta of 2.0, which was determined to relax the system to the ground state as long as tau>0.1
+T = 0.5
 N_sweep = [2, 4, 16, 64, 256, 1028]
 # These are chosen to sweep the tau values, to extrapolate and get a fit PIGS value
-P_sweep = [15, 9, 7, 5]
+P_sweep = [19, 13, 9, 7]
 N = 2
 
 if N == 2:
@@ -49,8 +49,8 @@ g_sweep_dict_O = {}
 arrE_fit = np.zeros((len(g_sweep),2), float)
 arrO_fit = np.zeros((len(g_sweep),2), float)
 arrO_SmallestTau = np.zeros((len(g_sweep),2), float)
-E_fit_out = open("Energy_N" + str(N) + '.dat','w')
-O_fit_out = open("OrienCorr_N" + str(N) + '.dat','w')
+E_fit_out = open("EnergyFit_N" + str(N) + '.dat','w')
+O_fit_out = open("OrienCorrFit_N" + str(N) + '.dat','w')
 O_SmallestTau_out = open("OrienCorrSmallestTau_N" + str(N) + '.dat','w')
 
 for ig, g in enumerate(g_sweep):
@@ -99,7 +99,7 @@ for ig, g in enumerate(g_sweep):
     # Extrapolating to the tau = 0 limit
     #Efit = np.polyfit(arrE[:,0], arrE[:,1], 2)
     Efit = extrapolateE0(arrE, 'quartic')
-    Ofit = np.polyfit(arrO[:,0], arrO[:,1], 2)
+    Ofit = extrapolateE0(arrO, 'quartic')
     
     # Storing the fitted results
     arrE_fit[ig, :] = [g, Efit[2]]
@@ -128,7 +128,7 @@ for ig, g in enumerate(g_sweep):
     
     # Plotting O vs tau
     fig, ax = plt.subplots(1, 1, figsize=(8,5))
-    ax.plot(tauAx, (Ofit[0]*tauAx**2 + Ofit[1]*tauAx + Ofit[2]), color='k')
+    ax.plot(tauAx, (Ofit[0]*tauAx**4 + Ofit[1]*tauAx**2 + Ofit[2]), color='k')
     ax.plot(0, Ofit[2], marker='o', color='k', label='PIGS: Fit')
     ax.errorbar(arrO[:,0], arrO[:,1], arrO[:,2], label='PIGS', fmt='o', capsize=3)
     ax.set_xlabel(r'$\tau\ (K^{-1})$')
@@ -151,7 +151,7 @@ ax.annotate('N = ' + str(N), xy=(0.5, 0.95),  xycoords='axes fraction', horizont
 ax.minorticks_on()
 ax.legend()
 fig.tight_layout()
-fig.savefig("Energy_N" + str(N) + ".png")
+fig.savefig("EnergyFit_N" + str(N) + ".png")
 
 # Plotting O versus g
 fig, ax = plt.subplots(1, 1, figsize=(8,5))
@@ -162,7 +162,7 @@ ax.annotate('N = ' + str(N), xy=(0.5, 0.95),  xycoords='axes fraction', horizont
 ax.minorticks_on()
 ax.legend()
 fig.tight_layout()
-fig.savefig("OrienCorr_N" + str(N) + ".png")
+fig.savefig("OrienCorrFit_N" + str(N) + ".png")
 
 # Plotting O versus g
 fig, ax = plt.subplots(1, 1, figsize=(8,5))

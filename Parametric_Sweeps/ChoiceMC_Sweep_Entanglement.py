@@ -19,7 +19,7 @@ except FileExistsError:
 os.chdir(path)
 
 # Setting up the variables to sweep over
-g_sweep = np.linspace(0.01, 4, 30)
+g_sweep = np.linspace(0.01, 3, 20)
 N=4
     
 # Creating arrays to store the S2 versus g data
@@ -31,7 +31,7 @@ for ig, g in enumerate(g_sweep):
     print("Starting g = " + str(g))
     
     # Creating a ChoiceMC object for the current iteration
-    PIMC = ChoiceMC(m_max=5, P=9, g=g, MC_steps=1000000, N=N, PIGS=True, Nskip=100, Nequilibrate=100)
+    PIMC = ChoiceMC(m_max=5, P=9, g=g, MC_steps=1000000, N=N, PIGS=True, Nskip=100, Nequilibrate=100, t=0.5)
     # Creating the probability density matrix for each rotor
     PIMC.createFreeRhoMarx()
     # Creating the probability density matrix for nearest neighbour interactions
