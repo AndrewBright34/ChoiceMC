@@ -43,8 +43,8 @@ for ig, g in enumerate(g_sweep):
     PIMC.plotHisto_total('PIMC')
     
     # Storing and saving the data from the current run
-    entanglement[ig,:] = [g, PIMC.S2, PIMC.S2_err]
-    entanglement_out.write(str(g) + ' ' + str(PIMC.S2) + ' ' + str(PIMC.S2_err) + '\n')
+    entanglement[ig,:] = [g, PIMC.S2, PIMC.S2_stdError]
+    entanglement_out.write(str(g) + ' ' + str(PIMC.S2) + ' ' + str(PIMC.S2_stdError) + '\n')
     
     # Closing the remaining open plots
     plt.close('all')

@@ -41,8 +41,8 @@ for mMax in mMax_sweep:
         for iP, P in enumerate(P_sweep):
             PIMC = ChoiceMC(m_max=mMax, P=P, g=g, MC_steps=10000, N=2, PIGS=True, Nskip=100, Nequilibrate=100, T=2./3.)
             PIMC.runNMM()
-            energy[iP,:] = [P, PIMC.E0_nmm]
-            energy_out.write(str(P) + ' ' + str(PIMC.E0_nmm) + '\n')
+            energy[iP,:] = [P, PIMC.E0_NMM]
+            energy_out.write(str(P) + ' ' + str(PIMC.E0_NMM) + '\n')
         
         g_sweep_dict.update({g: energy})
         
@@ -85,8 +85,8 @@ for P in P_sweep:
         for imMax, mMax in enumerate(mMax_sweep):
             PIMC = ChoiceMC(m_max=mMax, P=P, g=g, MC_steps=10000, N=2, PIGS=True, Nskip=100, Nequilibrate=100, T=2./3.)
             PIMC.runNMM()
-            energy[imMax,:] = [mMax, PIMC.E0_nmm]
-            energy_out.write(str(mMax) + ' ' + str(PIMC.E0_nmm) + '\n')
+            energy[imMax,:] = [mMax, PIMC.E0_NMM]
+            energy_out.write(str(mMax) + ' ' + str(PIMC.E0_NMM) + '\n')
         
         g_sweep_dict.update({g: energy})
         
@@ -116,27 +116,47 @@ for P in P_sweep:
     E_fig.savefig("Energy_mMaxSweep_P" + str(P) + ".png")
     plt.close('all')
 
-g_sweep = np.sort(np.append(np.linspace(0.01, 4, 40),np.array([0.1, 1., 2.])))
+# Sweeping over g values - this is what will be used in future tests
+g_sweep = np.sort(np.append(np.linspace(0.01, 8, 40),np.array([0.1, 1., 2.])))
 energy = np.zeros((len(g_sweep),2), float)
 energy_out = open("Energy_NMM.dat", 'w')
+orrCorr = np.zeros((len(g_sweep),2), float)
+orrCorr_out = open("OrrCorr_NMM.dat", 'w')
 for ig, g in enumerate(g_sweep):
-    PIMC = ChoiceMC(m_max=25, P=21, g=g, MC_steps=10000, N=2, PIGS=True, Nskip=100, Nequilibrate=100, T=2./3.)
+    PIMC = ChoiceMC(m_max=10, P=21, g=g, MC_steps=10000, N=2, PIGS=True, Nskip=100, Nequilibrate=100, T=2./3.)
     PIMC.runNMM()
-    energy[ig,:] = [g, PIMC.E0_nmm]
-    energy_out.write(str(g) + ' ' + str(PIMC.E0_nmm) + '\n')
+    energy[ig,:] = [g, PIMC.E0_NMM]
+    energy_out.write(str(g) + ' ' + str(PIMC.E0_NMM) + '\n')
+    orrCorr[ig,:] = [g, PIMC.eiej_NMM]
+    orrCorr_out.write(str(g) + ' ' + str(PIMC.eiej_NMM) + '\n')
+
 # Plotting E0 versus g
 fig, ax = plt.subplots(1, 1, figsize=(8,5))
 ax.plot(energy[:,0], energy[:,1], label='NMM', marker='o', color='k')
 ax.set_xlabel('g')
 ax.set_ylabel(r'$E_0$')
-ax.annotate('N = 2; P = 21;' + r'$\ M_{Max}$' + ' = 25', xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
+ax.annotate('N = 2; P = 21;' + r'$\ M_{Max}$' + ' = 10', xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
 ax.minorticks_on()
 ax.legend()
 fig.tight_layout()
 fig.savefig("Energy_NMM.png")
+
+# Plotting O vs g
+O_fig, O_ax = plt.subplots(1, 1, figsize=(8,5))
+O_ax.plot(orrCorr[:,0], orrCorr[:,1], label='NMM', marker='o', color='k')
+O_ax.set_xlabel('g')
+O_ax.set_ylabel('Orientational Correlation')
+ax.annotate('N = 2; P = 21;' + r'$\ M_{Max}$' + ' = 10', xy=(0.5, 0.15),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
+O_ax.minorticks_on()
+ax.legend()
+O_fig.tight_layout()
+O_fig.savefig("OrrCorr_NMM.png")
+
 energy_out.close()
+orrCorr_out.close()
 plt.close('all')
 
+# Performing sweeps over tau and beta
 tau_sweep = [0.0015, 0.005, 0.05, 0.1]
 g_sweep = [0.1, 1., 2., 4.]
 P_sweep = [3, 5, 7, 9, 11, 13, 15, 19, 23, 27, 31, 35]
@@ -183,8 +203,8 @@ for tau in tau_sweep:
             PIMC.runNMM()
             
             # Storing and saving the data from the current run
-            energy[i,:] = [PIMC.beta, PIMC.E0_nmm]
-            energy_out.write(str(PIMC.beta) + ' ' + str(PIMC.E0_nmm) + '\n')
+            energy[i,:] = [PIMC.beta, PIMC.E0_NMM]
+            energy_out.write(str(PIMC.beta) + ' ' + str(PIMC.E0_NMM) + '\n')
                 
             # Closing the remaining open plots
             plt.close('all')

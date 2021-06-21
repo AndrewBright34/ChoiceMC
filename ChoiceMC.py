@@ -256,7 +256,7 @@ class ChoiceMC(object):
         -------
         self.E0_ED:float
             The ground state energy calculated by exact diagonalization.
-        self.eiej_corr_ED: float
+        self.eiej_ED: float
             The orientational correlation calculated by exact diagonalization.
 
         '''
@@ -312,8 +312,10 @@ class ChoiceMC(object):
         
         Returns
         -------
-        self.E0_nmm: float
+        self.E0_NMM: float
             Ground state energy calculated by the NMM method
+        self.eiej_NMM: float
+            The orientational correlation calculated by the NMM method.
         """
         # Unpacking class attributes into variables
         size = self.Ngrid
@@ -349,20 +351,42 @@ class ChoiceMC(object):
         
         # Forming the density matrix via matrix multiplication        
         rho_beta=rho_tau.copy()
+        rho_beta_over2=rho_tau.copy()
         for k in range(self.P-1):
             rho_beta=(self.delta_phi**2)*np.dot(rho_beta,rho_tau)
+        for k in range(int((self.P-1)/2)):
+            rho_beta_over2=(self.delta_phi**2)*np.dot(rho_beta_over2,rho_tau)
+        rho_beta_over2_e1_e2=rho_beta_over2.copy()
         
-        # Finding the ground state energy of the 
+        # Forming matrices to find the orientational correlation
+        for i1 in range(size):
+            phi1=i1*self.delta_phi
+            z1=np.cos(phi1)
+            x1=np.sin(phi1)
+            for i2 in range(size):
+                phi2=i2*self.delta_phi
+                z2=np.cos(phi2)
+                x2=np.sin(phi2)
+                for i1p in range(size):                    
+                    for i2p in range(size):
+                        rho_beta_over2_e1_e2[i1*size+i2,i1p*size+i2p]=rho_beta_over2[i1*size+i2,i1p*size+i2p]*(x1*x2+z1*z2)
+        rhobeta2_e1e2_rhobeta2=(self.delta_phi**2)*np.dot(rho_beta_over2,rho_beta_over2_e1_e2)
+        
+        # Finding the ground state energy and orientational correlations
         E0_nmm=0.
         rho_dot_V=np.dot(rho_beta,potential)
         Z0=0. # pigs pseudo Z
+        e1_dot_e2=0.
         for i in range(size2):
             E0_nmm += rho_dot_V[i]
             for ip in range(size2):
+                e1_dot_e2+=rhobeta2_e1e2_rhobeta2[i,ip]
                 Z0 += rho_beta[i,ip]
         E0_nmm/=Z0
-        print('NMM E0 = ',E0_nmm)
-        self.E0_nmm = E0_nmm    
+        self.E0_NMM = E0_nmm    
+        self.eiej_NMM = e1_dot_e2/Z0
+        print('NMM E0 = ', E0_nmm)
+        print('NMM <e1.e2>= ', self.eiej_NMM)
     
     def createFreeRhoMarx(self):
         """
@@ -647,6 +671,12 @@ class ChoiceMC(object):
             potential between nearest neighbours
         self.rhoV: numpy array
             Nx1 array containing the probability density based on the on-site interactions
+        self.rhoVij_half: numpy array
+            NxN array containing the probability density based on the interaction potential 
+            using tau/2 between nearest neighbours, only applicable to PIGS
+        self.rhoV_half: numpy array
+            Nx1 array containing the probability density based on the on-site interactions
+            using tau/2, only applicable to PIGS
 
         """
         # potential rho
@@ -658,7 +688,12 @@ class ChoiceMC(object):
         for i in range(self.Ngrid):
             for j in range(self.Ngrid):
                 self.rhoVij[i,j] = np.exp(-self.tau * (Vij(i*self.delta_phi, j*self.delta_phi, self.g)))
-    
+        
+        # Creating the rhoV for the end beads, where they only have tau/2 interactions
+        if self.PIGS:
+            self.rhoV_half = np.sqrt(self.rhoV)
+            self.rhoVij_half = np.sqrt(self.rhoVij)
+        
     def runMC(self, averagePotential = True, averageEnergy = True, orientationalCorrelations = True, initialState='random'):
         """
         Performs the monte carlo integration to simulate the system.
@@ -683,18 +718,35 @@ class ChoiceMC(object):
         -------
         self.V_MC: float
             The resultant average system potential.
+        self.V_stdError_MC: float
+            The resultant standard error in the system potential.
         self.E_MC: float
             The resultant average system energy.
+        self.E_stdError_MC: float
+            The resultant standard error in the system energy.
         self.eiej_MC: float
             The resultant average system orientational correlation.
-        self.histo: numpy array
-            Nx6 array containing:
+        self.eiej_stdError_MC: float
+            The resultant standard error in the system orientational correlation.
+        self.histo_N: dict
+            Dictionary of Nx5 numpy arrays containing the following histograms
+            for each individual rotor:
                 1st column: The angle phi
                 2nd column: PIMC Histogram
                 3rd column: Middle bead histogram
                 4th column: Left bead histogram
                 5th column: Right bead histogram
-                6th column: Initial overall histogram
+        self.histo_total: numpy array
+            Nx5 array for the entire systemcontaining:
+                1st column: The angle phi
+                2nd column: PIMC Histogram
+                3rd column: Middle bead histogram
+                4th column: Left bead histogram
+                5th column: Right bead histogram
+        self.histo_initial: numpy array
+            Nx2 array containing:
+                1st column: The angle phi
+                2nd column: Initial overall histogram
         
         Outputs
         -------
@@ -799,26 +851,51 @@ class ChoiceMC(object):
                     
                     # Local on site interaction with the potential field
                     if self.V0 != 0.:
-                        for ip in range(self.Ngrid):
-                           prob_full[ip]*=self.rhoV[ip]
+                        if (p==0 or p==(self.P-1)) and self.PIGS:
+                            # Half interaction at the end beads
+                            for ip in range(self.Ngrid):
+                                prob_full[ip]*=self.rhoV_half[ip]
+                        else:
+                            for ip in range(self.Ngrid):
+                                prob_full[ip]*=self.rhoV[ip]
         
                     # NN interactions and PBC(periodic boundary conditions)
                     if (i<(self.N-1)):
                         # Interaction with the rotor to the right
-                        for ir in range(len(prob_full)):
-                            prob_full[ir]*=self.rhoVij[ir,path_phi[i+1,p]]
+                        if (p==0 or p==(self.P-1)) and self.PIGS:
+                            # Half interaction at the end beads
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[i+1,p]]
+                        else:
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij[ir,path_phi[i+1,p]]
                     if (i>0):
                         # Interaction with the rotor to the left
-                        for ir in range(len(prob_full)):
-                            prob_full[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
+                        if (p==0 or p==(self.P-1)) and self.PIGS:
+                            # Half interaction at the end beads
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[i-1,p]]
+                        else:
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
                     if (i==0) and (self.N>2):
                         # Periodic BC for the leftmost rotor, doesn't apply to the 2 rotor system
-                        for ir in range(len(prob_full)):
-                            prob_full[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
+                        if (p==0 or p==(self.P-1)) and self.PIGS:
+                            # Half interaction at the end beads
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[self.N-1,p]]
+                        else:
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
                     if (i==(self.N-1)) and (self.N>2):
                         # Periodic BC for the rightmost rotor, doesn't apply to the 2 rotor system
-                        for ir in range(len(prob_full)):
-                            prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
+                        if (p==0 or p==(self.P-1)) and self.PIGS:
+                            # Half interaction at the end beads
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[0,p]]
+                        else:
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
                     
                     # Normalize
                     norm_pro=0.
@@ -981,14 +1058,27 @@ class ChoiceMC(object):
         -------
         self.S2: float
             The resultant second Renyi entropy
-        self.histo: numpy array
-            Nx6 array containing:
+        self.S2_stdError: float
+            The resultant standard error in the second Renyi entropy
+        self.histo_N: dict
+            Dictionary of Nx5 numpy arrays containing the following histograms
+            for each individual rotor:
                 1st column: The angle phi
                 2nd column: PIMC Histogram
                 3rd column: Middle bead histogram
                 4th column: Left bead histogram
                 5th column: Right bead histogram
-                6th column: Initial overall histogram
+        self.histo_total: numpy array
+            Nx5 array for the entire systemcontaining:
+                1st column: The angle phi
+                2nd column: PIMC Histogram
+                3rd column: Middle bead histogram
+                4th column: Left bead histogram
+                5th column: Right bead histogram
+        self.histo_initial: numpy array
+            Nx2 array containing:
+                1st column: The angle phi
+                2nd column: Initial overall histogram
         
         Outputs
         -------
@@ -1022,8 +1112,6 @@ class ChoiceMC(object):
             
         if not hasattr(self, 'rhoVij'):
             self.createRhoVij()
-        # Creating a copy of RhoVij to account for half-interactions
-        rhoVij_half = np.exp(0.5)*self.rhoVij
         
         if not self.PIGS:
             raise Exception("PIGS must be enabled to run runMCReplica, please create a choiceMC object with this enabled")
@@ -1127,9 +1215,15 @@ class ChoiceMC(object):
                     
                     # Local on site interaction with the external potential field
                     if self.V0 != 0.:
-                        for ip in range(self.Ngrid):
-                           prob_full[ip]*=self.rhoV[ip]
-                           prob_full_replica[ip]*=self.rhoV[ip]
+                        if (p==0 or p==(self.P-1)):
+                            # Half interaction at the end beads
+                            for ip in range(self.Ngrid):
+                                prob_full[ip]*=self.rhoV_half[ip]
+                                prob_full_replica[ip]*=self.rhoV_half[ip]
+                        else:
+                            for ip in range(self.Ngrid):
+                                prob_full[ip]*=self.rhoV[ip]
+                                prob_full_replica[ip]*=self.rhoV[ip]
                        
                     # NN interactions and PBC(periodic boundary conditions)              
                     if (i<(self.N-1)):
@@ -1137,10 +1231,15 @@ class ChoiceMC(object):
                         if (p==P_middle) and swapped and i == (N_partition-1):
                             # Swaps the right interaction for the middle bead of the rotor at the partition on the A side
                             for ir in range(len(prob_full)):
-                                prob_full[ir]*=rhoVij_half[ir,path_phi[i+1,p]]
-                                prob_full[ir]*=rhoVij_half[ir,path_phi_replica[i+1,p]]
-                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi[i+1,p]]
-                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi_replica[i+1,p]]
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[i+1,p]]
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi_replica[i+1,p]]
+                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi[i+1,p]]
+                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[i+1,p]]
+                        elif (p==0 or p==(self.P-1)):
+                            # Half interaction at the end beads
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[i+1,p]]
+                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[i+1,p]]
                         else:
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[i+1,p]]
@@ -1150,10 +1249,15 @@ class ChoiceMC(object):
                         if (p==P_middle) and swapped and i == N_partition:
                             # Swaps the left interaction for the middle bead of the rotor at the partition on the B side
                             for ir in range(len(prob_full)):
-                                prob_full[ir]*=rhoVij_half[ir,path_phi[i-1,p]]
-                                prob_full[ir]*=rhoVij_half[ir,path_phi_replica[i-1,p]]
-                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi[i-1,p]]
-                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi_replica[i-1,p]]
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[i-1,p]]
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi_replica[i-1,p]]
+                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi[i-1,p]]
+                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[i-1,p]]
+                        elif (p==0 or p==(self.P-1)):
+                            # Half interaction at the end beads
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[i-1,p]]
+                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[i-1,p]] 
                         else:
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
@@ -1163,10 +1267,15 @@ class ChoiceMC(object):
                         if (p==P_middle) and swapped:
                             # Swaps the left interaction for the middle bead of the leftmost rotor
                             for ir in range(len(prob_full)):
-                                prob_full[ir]*=rhoVij_half[ir,path_phi[self.N-1,p]]
-                                prob_full[ir]*=rhoVij_half[ir,path_phi_replica[self.N-1,p]]
-                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi[self.N-1,p]]
-                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi_replica[self.N-1,p]]
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[self.N-1,p]]
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi_replica[self.N-1,p]]
+                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi[self.N-1,p]]
+                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[self.N-1,p]]
+                        elif (p==0 or p==(self.P-1)):
+                            # Half interaction at the end beads
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[self.N-1,p]]
+                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[self.N-1,p]]
                         else:
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
@@ -1176,10 +1285,15 @@ class ChoiceMC(object):
                         if (p==P_middle) and swapped:
                             # Swaps the left interaction for the middle bead of the rightmost rotor
                             for ir in range(len(prob_full)):
-                                prob_full[ir]*=rhoVij_half[ir,path_phi[0,p]]
-                                prob_full[ir]*=rhoVij_half[ir,path_phi_replica[0,p]]
-                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi[0,p]]
-                                prob_full_replica[ir]*=rhoVij_half[ir,path_phi_replica[0,p]]
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[0,p]]
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi_replica[0,p]]
+                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi[0,p]]
+                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[0,p]]
+                        elif (p==0 or p==(self.P-1)):
+                            # Half interaction at the end beads
+                            for ir in range(len(prob_full)):
+                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[0,p]]
+                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[0,p]]
                         else:
                             for ir in range(len(prob_full)):
                                 prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
@@ -1242,15 +1356,15 @@ class ChoiceMC(object):
             # Potential contribution, this only impacts the middle bead
             # Interactions for the periodic BCs, only applies for more than 2 rotors
             if (self.N>2):
-                rhoUnswapped *= rhoVij_half[path_phi[0,P_middle],path_phi[self.N-1,P_middle]]
-                rhoUnswapped *= rhoVij_half[path_phi_replica[0,P_middle],path_phi_replica[self.N-1,P_middle]]
-                rhoSwapped *= rhoVij_half[path_phi_replica[0,P_middle],path_phi[self.N-1,P_middle]]
-                rhoSwapped *= rhoVij_half[path_phi[0,P_middle],path_phi_replica[self.N-1,P_middle]]
+                rhoUnswapped *= self.rhoVij_half[path_phi[0,P_middle],path_phi[self.N-1,P_middle]]
+                rhoUnswapped *= self.rhoVij_half[path_phi_replica[0,P_middle],path_phi_replica[self.N-1,P_middle]]
+                rhoSwapped *= self.rhoVij_half[path_phi_replica[0,P_middle],path_phi[self.N-1,P_middle]]
+                rhoSwapped *= self.rhoVij_half[path_phi[0,P_middle],path_phi_replica[self.N-1,P_middle]]
             # Interactions at the partition between A and B
-            rhoUnswapped *= rhoVij_half[path_phi[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
-            rhoUnswapped *= rhoVij_half[path_phi_replica[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
-            rhoSwapped *= rhoVij_half[path_phi_replica[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
-            rhoSwapped *= rhoVij_half[path_phi[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
+            rhoUnswapped *= self.rhoVij_half[path_phi[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
+            rhoUnswapped *= self.rhoVij_half[path_phi_replica[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
+            rhoSwapped *= self.rhoVij_half[path_phi_replica[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
+            rhoSwapped *= self.rhoVij_half[path_phi[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
                     
             # Determing if we should be sampling the swapped or unswapped distribution
             if swapped:
@@ -1279,7 +1393,7 @@ class ChoiceMC(object):
         entropy = -np.log(purity)
         err_entropy  = abs(err_purity)/purity
         self.S2 = entropy
-        self.S2_err = err_entropy
+        self.S2_stdError = err_entropy
         
         print('S2 = ', str(self.S2))
         
