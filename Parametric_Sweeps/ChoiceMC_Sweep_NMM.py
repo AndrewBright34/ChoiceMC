@@ -338,9 +338,9 @@ P_sweep = [39, 25, 19, 15]
 # Sweeping over g values
 g_sweep = np.sort(np.append(np.linspace(0.01, 4, 40),np.array([0.1, 1., 2.])))
 
-# Exact Diagonalization Results
-arrE_ED = loadResult("ED/Energy_mMax5.dat")
-arrO_ED = loadResult('ED/OrienCorr_mMax5.dat')
+# Loading Exact Diagonalization Results
+arrE_ED = loadResult(os.path.join('ED', 'Energy_mMax5.dat'))
+arrO_ED = loadResult(os.path.join('ED', 'OrienCorr_mMax5.dat'))
 
 # Creating dictionaries to store the results from the g sweep
 g_sweep_dict_E = {}

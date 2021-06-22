@@ -53,10 +53,10 @@ O_fit_out = open("OrienCorrFit_N" + str(N) + '.dat','w')
 O_SmallestTau_out = open("OrienCorrSmallestTau_N" + str(N) + '.dat','w')
 
 # Loading in NMM and ED results
-arrE_ED = loadResult('ED\Energy_mMax5.dat')
-arrO_ED = loadResult('ED\OrienCorr_mMax5.dat')
-arrE_NMM = loadResult('NMM\Quadratic_Fit\EnergyFit_N2.dat')
-arrO_NMM = loadResult('NMM\Quadratic_Fit\OrienCorrFit_N2.dat')
+arrE_ED = loadResult(os.path.join('ED', 'Energy_mMax5.dat'))
+arrO_ED = loadResult(os.path.join('ED', 'OrienCorr_mMax5.dat'))
+arrE_NMM = loadResult(os.path.join(os.path.join('NMM', 'Quadratic_Fit'), 'EnergyFit_N2.dat'))
+arrO_NMM = loadResult(os.path.join(os.path.join('NMM', 'Quadratic_Fit'), 'OrienCorrFit_N2.dat'))
 
 for ig, g in enumerate(g_sweep):
     print("------------------------------------------------")
