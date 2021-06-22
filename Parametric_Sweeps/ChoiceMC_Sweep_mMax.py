@@ -1,14 +1,14 @@
 # Importing the ChoiceMC class, this structure should be improved
 import sys
+import os
 try:
     from ChoiceMC import ChoiceMC
 except ModuleNotFoundError:
-    sys.path.append('..')
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
     from ChoiceMC import ChoiceMC
 import matplotlib.pyplot as plt
 import time
 import numpy as np
-import os
 
 # Making a folder to store the current test
 time_str = "mMax_Sweep-"+str(time.gmtime().tm_year)+'-'+str(time.gmtime().tm_mon)+'-'+str(time.gmtime().tm_mday)

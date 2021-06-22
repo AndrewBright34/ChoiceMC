@@ -1,23 +1,22 @@
-# Importing the ChoiceMC class, this structure should be improved
+# Importing the ChoiceMC class
 import sys
+import os
 try:
-    from ChoiceMC import ChoiceMC, extrapolateE0
+    from ChoiceMC import ChoiceMC, extrapolate_E0, extrapolate_eiej, loadResult
 except ModuleNotFoundError:
-    sys.path.append('..')
-    from ChoiceMC import ChoiceMC, extrapolateE0
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
+    from ChoiceMC import ChoiceMC, extrapolate_E0, extrapolate_eiej, loadResult
 import matplotlib.pyplot as plt
-
 import numpy as np
 import time
-import os
 parent_dir = os.getcwd()
 
 # Parameters
-# This temperature results in beta of 2.0, which was determined to relax the system to the ground state as long as tau>0.1
-T = 0.5
+# This temperature results in beta of 4.0, which was determined to relax the system to the ground state as long as tau>0.1
+T = 0.25
 N_sweep = [2, 4, 16, 64, 256, 1028]
 # These are chosen to sweep the tau values, to extrapolate and get a fit PIGS value
-P_sweep = [19, 13, 9, 7]
+P_sweep = [39, 25, 19, 15]
 N = 2
 
 if N == 2:
@@ -97,16 +96,15 @@ for ig, g in enumerate(g_sweep):
     O_out.close()
     
     # Extrapolating to the tau = 0 limit
-    #Efit = np.polyfit(arrE[:,0], arrE[:,1], 2)
-    Efit = extrapolateE0(arrE, 'quartic')
-    Ofit = extrapolateE0(arrO, 'quartic')
+    Efit = extrapolate_E0(arrE, 'quadratic')
+    Ofit = extrapolate_eiej(arrO, 'quadratic')
     
     # Storing the fitted results
-    arrE_fit[ig, :] = [g, Efit[2]]
-    arrO_fit[ig, :] = [g, Ofit[2]]
+    arrE_fit[ig, :] = [g, Efit[1]]
+    arrO_fit[ig, :] = [g, Ofit[1]]
     arrO_SmallestTau[ig, :] = [g, arrO[arrO[:,0]==np.min(arrO[:,0])][0,1]]
-    E_fit_out.write(str(g) + ' ' + str(Efit[2]) + '\n')
-    O_fit_out.write(str(g) + ' ' + str(Ofit[2]) + '\n')
+    E_fit_out.write(str(g) + ' ' + str(Efit[1]) + '\n')
+    O_fit_out.write(str(g) + ' ' + str(Ofit[1]) + '\n')
     O_SmallestTau_out.write(str(g) + ' ' + str(arrO[arrO[:,0]==np.min(arrO[:,0])][0,1]) + '\n')
     
     # Creating an array of tau for plotting a smooth line
@@ -114,8 +112,8 @@ for ig, g in enumerate(g_sweep):
     
     # Plotting E0 vs tau
     fig, ax = plt.subplots(1, 1, figsize=(8,5))
-    ax.plot(tauAx, (Efit[0]*tauAx**4 + Efit[1]*tauAx**2 + Efit[2]), color='k')
-    ax.plot(0, Efit[2], marker='o', color='k', label='PIGS: Fit')
+    ax.plot(tauAx, (-1*abs(Efit[0]*tauAx**2) + Efit[1]), color='k')
+    ax.plot(0, Efit[1], marker='o', color='k', label='PIGS: Fit')
     ax.errorbar(arrE[:,0], arrE[:,1], arrE[:,2], label='PIGS', fmt='o', capsize=3)
     ax.set_xlabel(r'$\tau\ (K^{-1})$')
     ax.set_ylabel(r'$E_0$'+' Per Interaction')
@@ -128,8 +126,8 @@ for ig, g in enumerate(g_sweep):
     
     # Plotting O vs tau
     fig, ax = plt.subplots(1, 1, figsize=(8,5))
-    ax.plot(tauAx, (Ofit[0]*tauAx**4 + Ofit[1]*tauAx**2 + Ofit[2]), color='k')
-    ax.plot(0, Ofit[2], marker='o', color='k', label='PIGS: Fit')
+    ax.plot(tauAx, (abs(Ofit[0]*tauAx**2) + Ofit[1]), color='k')
+    ax.plot(0, Ofit[1], marker='o', color='k', label='PIGS: Fit')
     ax.errorbar(arrO[:,0], arrO[:,1], arrO[:,2], label='PIGS', fmt='o', capsize=3)
     ax.set_xlabel(r'$\tau\ (K^{-1})$')
     ax.set_ylabel("Orientational Correlation")

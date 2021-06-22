@@ -137,21 +137,46 @@ def fitFuncQuadratic_E(tau, a, b):
     # tau = 0 that opens downwards
     return -1*abs(a*(tau**2)) + b
 
-def fitFuncQuartic_E(tau, a, b, c):
+def fitFuncQuadratic_eiej(tau, a, b):
+    # Curve fitting function, this ensure that it is a quadratic centered around
+    # tau = 0 that opens upwards
+    return abs(a*(tau**2)) + b
+
+def fitFuncQuartic(tau, a, b, c):
     # Curve fitting function, this ensure that it is a quadratic centered around
     # tau = 0 that opens downwards
     return a*tau**4 + b*tau**2 + c
 
-def extrapolateE0(arr, fitType='quadratic'):
+def extrapolate_E0(arr, fitType='quadratic'):
     # Takes an Nx2 array (tau, E0)
     # Returns the coefficients for the fitting function specified
     if fitType == 'quadratic':
         return curve_fit(fitFuncQuadratic_E, arr[:,0], arr[:,1])[0]
     elif fitType == 'quartic':
-        return curve_fit(fitFuncQuartic_E, arr[:,0], arr[:,1])[0]
+        return curve_fit(fitFuncQuartic, arr[:,0], arr[:,1])[0]
     else:
         raise Exception("Invalid fitting function type, please use quadratic or quartic")
-    
+
+def extrapolate_eiej(arr, fitType='quadratic'):
+    # Takes an Nx2 array (tau, eiej)
+    # Returns the coefficients for the fitting function specified
+    if fitType == 'quadratic':
+        return curve_fit(fitFuncQuadratic_eiej, arr[:,0], arr[:,1])[0]
+    elif fitType == 'quartic':
+        return curve_fit(fitFuncQuartic, arr[:,0], arr[:,1])[0]
+    else:
+        raise Exception("Invalid fitting function type, please use quadratic or quartic")
+        
+def loadResult(path):
+    # Takes in a path that branches from the ChoiceMC/Results directory and returns
+    # the data stored in that path
+    # Ex: path = 'ED/Energy_mMax1.dat' 
+    parent_dir = os.path.dirname(os.path.realpath(__file__))
+    result_path = os.path.join(parent_dir,'Results')
+    result_path = os.path.join(result_path, path)
+    result = np.loadtxt(result_path)
+    return result
+
 class ChoiceMC(object):
     def __init__(self, m_max, P, g, MC_steps, N, Nskip=100, Nequilibrate=0, PIGS=False, T=1, B=1, V0=0., potentialField='transverse'):
         """
@@ -226,7 +251,13 @@ class ChoiceMC(object):
         
         self.beta = 1./self.T
         self.P = P
-        self.tau = self.beta/float(self.P)
+        if self.P <= 1:
+            raise Exception("A minimum of 2 beads must be used")
+            
+        if self.PIGS:
+            self.tau = self.beta/float(self.P-1)
+        else:
+            self.tau = self.beta/float(self.P)
         
         self.m_max = m_max
         self.Ngrid = 2 * m_max + 1
@@ -246,7 +277,7 @@ class ChoiceMC(object):
         if self.P % 2 == 0 and self.PIGS:
             raise Warning("PIGS is enabled and an even number of beads was input, it is recommended to use an odd number")
     
-    def exactDiagonalization(self):
+    def runExactDiagonalization(self):
         '''
         Performs exact diagonalization for 2 rotors and calculates the ground state
         energy and orientational correlation. Warning, this method scales with Ngrid^2
@@ -299,10 +330,30 @@ class ChoiceMC(object):
                     for m2p in range(self.Ngrid):
                         e1_dot_e2 += evecs[m1*size + m2,0]*evecs[m1p*size + m2p,0]*(-1*sin_mmp[m1,m1p]*sin_mmp[m2,m2p] + cos_mmp[m1,m1p]*cos_mmp[m2,m2p])
                         # <0|m1 m2> <m1 m2|e1.e2|m1p m2p> <m1p m2p|0> = <0|e1.e2|0>
+        
+        # Finding the second renyi entropy
+        # Calculate reduced density matrix rhoA
+        rhoA = np.zeros((size,size), float)
+        for m1 in range(self.Ngrid):
+            for m1p in range(self.Ngrid):
+                for m2 in range(self.Ngrid):
+                    rhoA[m1,m1p] += evecs[m1*size + m2,0]*evecs[m1p*size + m2,0]
+        # Diagonalize rhoA
+        rhoA_E, rhoA_EV = np.linalg.eigh(rhoA)
+        S2 = 0.
+        SvN = 0.
+        for m1 in range(size):
+            SvN -= rhoA_E[m1]*np.log(abs(rhoA_E[m1]))
+            S2 += (rhoA_E[m1]**2)
+        S2 = -np.log(S2)
+        
         self.E0_ED = E0
-        print('E0_ED = ',self.E0_ED)
         self.eiej_ED = e1_dot_e2
+        self.S2_ED = S2
+        self.SvN = SvN
+        print('E0_ED = ',self.E0_ED)
         print('ED <ei.ej> = ',self.eiej_ED)
+        print('S2_ED = ', str(self.S2_ED))
       
     def runNMM(self):
         """
