@@ -289,7 +289,10 @@ class ChoiceMC(object):
             The ground state energy calculated by exact diagonalization.
         self.eiej_ED: float
             The orientational correlation calculated by exact diagonalization.
-
+        
+        TO ADD
+        -------
+        Add calculations for non-PIGS simulations
         '''
         # Throwing a warning if the MC object currently being tested does not have 2 rotors
         if self.N != 2:
@@ -1095,7 +1098,7 @@ class ChoiceMC(object):
             self.histo_initial[i,:] = [i*self.delta_phi,
                                        histo_initial[i]/(self.N*self.P)/self.delta_phi] 
         histo_out.close()
-        
+    
     def runMCReplica(self, ratioTrick=False, initialState='random'):
         """
         Performs the monte carlo integration to simulate the system with entanglement considered. This employs
@@ -1117,52 +1120,11 @@ class ChoiceMC(object):
             The resultant second Renyi entropy
         self.S2_stdError: float
             The resultant standard error in the second Renyi entropy
-        self.histo_N: dict
-            Dictionary of Nx5 numpy arrays containing the following histograms
-            for each individual rotor:
-                1st column: The angle phi
-                2nd column: PIMC Histogram
-                3rd column: Middle bead histogram
-                4th column: Left bead histogram
-                5th column: Right bead histogram
-        self.histo_total: numpy array
-            Nx5 array for the entire systemcontaining:
-                1st column: The angle phi
-                2nd column: PIMC Histogram
-                3rd column: Middle bead histogram
-                4th column: Left bead histogram
-                5th column: Right bead histogram
-        self.histo_initial: numpy array
-            Nx2 array containing:
-                1st column: The angle phi
-                2nd column: Initial overall histogram
-        
-        Outputs
-        -------
-        histo_A_P_N: Nx2 txt file
-            A saved version of the self.histo outlined above.
-        traj_A: Nx3 dat file
-            The phi values of the left, right and middle beads in columns 1, 2 
-            and 3 respectively, with each row corresponding to a specific rotor
-            during a specific MC step.
 
         """
-         # Creating histograms to store each rotor's distributions
-        histoLeft_N = {}
-        histoRight_N = {}
-        histoMiddle_N = {}
-        histoPIMC_N = {}
-        for n in range(self.N):
-            histoLeft_N.update({n: np.zeros(self.Ngrid,float)})
-            histoRight_N.update({n: np.zeros(self.Ngrid,float)})
-            histoMiddle_N.update({n: np.zeros(self.Ngrid,float)})
-            histoPIMC_N.update({n: np.zeros(self.Ngrid,float)})
-            
-        # Creating a histogram that stores the initial distribution
-        histo_initial=np.zeros(self.Ngrid,float)
         
-        if not ratioTrick and (self.N//2 != self.N/2):
-            raise Exception("An even number of rotors must be used for partitioning if the replica trick is not enabled")
+        if (self.N//2 != self.N/2):
+            raise Exception("An even number of rotors must be used for partitioning")
         
         if not hasattr(self, 'rho_phi'):
             self.createFreeRhoMarx()
@@ -1176,336 +1138,306 @@ class ChoiceMC(object):
         p_dist=gen_prob_dist(self.Ngrid, self.rho_phi)
         p_dist_end=gen_prob_dist_end(self.Ngrid, self.rho_phi)
         
-        path_phi=np.zeros((self.N,self.P),int) ## i  N => number of beads
-        
-        # Initial conditions
-        if initialState == 'random':
-            # Rotors have random angles
-            for i in range(self.N):
-                for p in range(self.P):
-                    path_phi[i,p]=np.random.randint(self.Ngrid)
-                    histo_initial[path_phi[i,p]]+=1.
-        elif initialState == 'ordered_0':
-            # All rotors have angle of 0
-            histo_initial[0] += 1.
-        elif initialState == 'ordered_pi':
-            # All rotors have angle of pi
-            path_phi += int(self.Ngrid/2)
-            histo_initial[int(self.Ngrid/2)] += 1.
-        else:
-            raise Exception("An invalid selection was made for the initial conditions, please use random, ordered_0 or ordered_pi")
-        
-        # Make monte carlo into a function, divide into equilibration and production    
-        
-        
-        traj_out=open(os.path.join(self.path,'traj_A.dat'),'w')
-        
-        # recommanded numpy random number initialization
-        rng = default_rng()
-        
-        print('start MC')
-        
-        # Counter for the number of MC steps in the swapped and unswapped configuration
-        N_swapped = 0
-        rSwapped_arr = np.zeros(self.MC_steps,float)
-        N_unswapped = 0
-        rUnswapped_arr = np.zeros(self.MC_steps,float)
-        swapped = False
-        
         # Index of the partition in the chain
-        N_partition = self.N // 2
+        NPartition_max = self.N // 2
         
-        # Creating a replica of the original path
-        path_phi_replica = path_phi.copy()
+        # Creating arrays to store the indeces of the first rotor in the B partition
+        if ratioTrick:
+            N_partitions = np.zeros((NPartition_max,2), int)
+            for i, partition in enumerate(N_partitions):
+                N_partitions[i,:] = [i, i+1]
+        else:
+            N_partitions = np.array([[0, NPartition_max]])
         
         # The indeces of the beads in the middle and to the left of the middle of the chain
         P_middle = int((self.P-1)/2)
         P_midLeft = P_middle - 1
         
-        prob_full=np.zeros(self.Ngrid,float)
-        prob_full_replica=np.zeros(self.Ngrid,float)
+        purity_arr = np.zeros(np.shape(N_partitions)[0], float)
+        purity_err_arr = np.zeros(np.shape(N_partitions)[0], float)
         
-        for n in range(self.MC_steps):
-            # Entanglement estimators
-            N_swapped += swapped
-            N_unswapped += (not swapped)
+        for i_partition, N_partition in enumerate(N_partitions):
             
-            # As the rotors are looped through, the only ones that can partake in the swapped/unswapped
-            # configuration are the rotors in the "A" partition
-            for i in range(self.N):
-                for p in range(self.P): 
-                    p_minus=p-1
-                    p_plus=p+1
-                    if (p_minus<0):
-                        p_minus+=self.P
-                    if (p_plus>=self.P):
-                        p_plus-=self.P  
-                    
-                    # kinetic action
-                    if p==0:
-                        # Special case on the left end of the chain
-                        for ip in range(self.Ngrid):
-                            prob_full[ip]=p_dist_end[ip,path_phi[i,p_plus]]
-                            prob_full_replica[ip]=p_dist_end[ip,path_phi_replica[i,p_plus]]
-                    elif p==(self.P-1):
-                        # Special case on the right end of the chain
-                        for ip in range(self.Ngrid):
-                            prob_full[ip]=p_dist_end[path_phi[i,p_minus],ip]
-                            prob_full_replica[ip]=p_dist_end[path_phi_replica[i,p_minus],ip]
-                    elif (p==P_midLeft) and swapped and i < N_partition:
-                        # Special case for extended ensemble for the bead to the left of the middle
-                        # This only applies to the "A" partition
-                        for ip in range(self.Ngrid):
-                            prob_full[ip]=p_dist[path_phi[i,p_minus],ip,path_phi_replica[i,p_plus]]
-                            prob_full_replica[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi[i,p_plus]]
-                    elif (p==P_middle) and swapped and i < N_partition:
-                        # Special case for extended ensemble on the middle bead
-                        # This only applies to the "A" partition
-                        for ip in range(self.Ngrid):
-                            prob_full[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi[i,p_plus]]
-                            prob_full_replica[ip]=p_dist[path_phi[i,p_minus],ip,path_phi_replica[i,p_plus]]
-                    elif (p!=0 and p!=(self.P-1)):
-                        # Interactions for non-swapped and non-end beads
-                        for ip in range(self.Ngrid):
-                            prob_full[ip]=p_dist[path_phi[i,p_minus],ip,path_phi[i,p_plus]]
-                            prob_full_replica[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi_replica[i,p_plus]]                         
-                    
-                    # Local on site interaction with the external potential field
-                    if self.V0 != 0.:
-                        if (p==0 or p==(self.P-1)):
-                            # Half interaction at the end beads
-                            for ip in range(self.Ngrid):
-                                prob_full[ip]*=self.rhoV_half[ip]
-                                prob_full_replica[ip]*=self.rhoV_half[ip]
-                        else:
-                            for ip in range(self.Ngrid):
-                                prob_full[ip]*=self.rhoV[ip]
-                                prob_full_replica[ip]*=self.rhoV[ip]
-                       
-                    # NN interactions and PBC(periodic boundary conditions)              
-                    if (i<(self.N-1)):
-                        # Interaction with right neighbour
-                        if (p==P_middle) and swapped and i == (N_partition-1):
-                            # Swaps the right interaction for the middle bead of the rotor at the partition on the A side
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[i+1,p]]
-                                prob_full[ir]*=self.rhoVij_half[ir,path_phi_replica[i+1,p]]
-                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi[i+1,p]]
-                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[i+1,p]]
-                        elif (p==0 or p==(self.P-1)):
-                            # Half interaction at the end beads
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[i+1,p]]
-                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[i+1,p]]
-                        else:
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij[ir,path_phi[i+1,p]]
-                                prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[i+1,p]]
-                    if (i>0):
-                        # Interaction with left neighbour
-                        if (p==P_middle) and swapped and i == N_partition:
-                            # Swaps the left interaction for the middle bead of the rotor at the partition on the B side
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[i-1,p]]
-                                prob_full[ir]*=self.rhoVij_half[ir,path_phi_replica[i-1,p]]
-                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi[i-1,p]]
-                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[i-1,p]]
-                        elif (p==0 or p==(self.P-1)):
-                            # Half interaction at the end beads
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[i-1,p]]
-                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[i-1,p]] 
-                        else:
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
-                                prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[i-1,p]] 
-                    if (i==0) and (self.N>2):
-                        # Periodic BC for the leftmost rotor, only applies for more than 2 rotors
-                        if (p==P_middle) and swapped:
-                            # Swaps the left interaction for the middle bead of the leftmost rotor
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[self.N-1,p]]
-                                prob_full[ir]*=self.rhoVij_half[ir,path_phi_replica[self.N-1,p]]
-                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi[self.N-1,p]]
-                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[self.N-1,p]]
-                        elif (p==0 or p==(self.P-1)):
-                            # Half interaction at the end beads
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[self.N-1,p]]
-                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[self.N-1,p]]
-                        else:
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
-                                prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[self.N-1,p]]
-                    if (i==(self.N-1)) and (self.N>2):
-                        # Periodic BC for the rightmost rotor, only applies for more than 2 rotors
-                        if (p==P_middle) and swapped:
-                            # Swaps the left interaction for the middle bead of the rightmost rotor
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[0,p]]
-                                prob_full[ir]*=self.rhoVij_half[ir,path_phi_replica[0,p]]
-                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi[0,p]]
-                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[0,p]]
-                        elif (p==0 or p==(self.P-1)):
-                            # Half interaction at the end beads
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij_half[ir,path_phi[0,p]]
-                                prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[0,p]]
-                        else:
-                            for ir in range(len(prob_full)):
-                                prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
-                                prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[0,p]]
-        
-                    #normalize
-                    norm_pro=0.
-                    norm_pro_replica=0.
-                    for ir in range(len(prob_full)):
-                        norm_pro+=prob_full[ir]
-                        norm_pro_replica+=prob_full_replica[ir]
-                    for ir in range(len(prob_full)):
-                        prob_full[ir]/=norm_pro
-                        prob_full_replica[ir]/=norm_pro_replica
-                    index=rng.choice(self.Ngrid,1, p=prob_full)
-                    index_replica=rng.choice(self.Ngrid,1, p=prob_full_replica)
-                    
-                    # Rejection free sampling
-                    path_phi[i,p] = index
-                    path_phi_replica[i,p] = index_replica
-                    
-                    histoPIMC_N[i][path_phi[i,p]]+=1.
-                    
-                if (n%self.Nskip==0):
-                    traj_out.write(str(path_phi[i,0]*self.delta_phi)+' ')
-                    traj_out.write(str(path_phi[i,self.P-1]*self.delta_phi)+' ')
-                    traj_out.write(str(path_phi[i,P_middle]*self.delta_phi)+' ') #middle bead
-                    traj_out.write('\n')
-                    
-                # Adding to the histogram counts.
-                histoLeft_N[i][path_phi[i,0]]+=1.
-                histoRight_N[i][path_phi[i,self.P-1]]+=1.
-                histoMiddle_N[i][path_phi[i,P_middle]]+=1.
+            path_phi=np.zeros((self.N,self.P),int) ## i  N => number of beads
             
-            # Metropolis critereon
+            # Initial conditions
+            if initialState == 'random':
+                # Rotors have random angles
+                for i in range(self.N):
+                    for p in range(self.P):
+                        path_phi[i,p]=np.random.randint(self.Ngrid)
+            elif initialState == 'ordered_0':
+                # All rotors have angle of 0
+                path_phi += 0.
+            elif initialState == 'ordered_pi':
+                # All rotors have angle of pi
+                path_phi += int(self.Ngrid/2)
+            else:
+                raise Exception("An invalid selection was made for the initial conditions, please use random, ordered_0 or ordered_pi") 
             
-            # The interaction with the external potential field is ignored, as this will
-            # be the same for both the swapped and unswapped ensembles
-            # Any unchanged interactions (kinetic or potential) between the swapped and
-            # unswapped configurations are not calculated
+            # Creating a replica of the original path
+            path_phi_replica = path_phi.copy()
             
-            rhoUnswapped = 1.
-            rhoSwapped = 1.
+            # recommanded numpy random number initialization
+            rng = default_rng()
             
-            # Kinetic contribution from the swapped interactions in the A partition
-            ##########################################################
-            # This needs to be double checked, should this be multiplying the middle and midleft bead or is this double counting?
-            for i in range(N_partition):
-                # Middle bead
-                rhoUnswapped *= p_dist[path_phi[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
-                rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
-                rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
-                rhoSwapped *= p_dist[path_phi[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
-                # Bead to the left of the middle
-                rhoUnswapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi[i,P_middle]]
-                rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
-                rhoSwapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
-                rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
+            if ratioTrick:
+                print('start MC for partitions ' + str(N_partition[0]) + " to " + str(N_partition[1]))
+            else:
+                print('start MC')
+            
+            # Counter for the number of MC steps in the swapped and unswapped configuration
+            N_swapped = 0
+            rSwapped_arr = np.zeros(self.MC_steps,float)
+            N_unswapped = 0
+            rUnswapped_arr = np.zeros(self.MC_steps,float)
+            swapped = False
+            
+            prob_full=np.zeros(self.Ngrid,float)
+            prob_full_replica=np.zeros(self.Ngrid,float)
+            
+            for n in range(self.MC_steps):
+                # Entanglement estimators
+                N_swapped += swapped
+                N_unswapped += (not swapped)
                 
-            # Potential contribution, this only impacts the middle bead
-            # Interactions for the periodic BCs, only applies for more than 2 rotors
-            if (self.N>2):
-                rhoUnswapped *= self.rhoVij_half[path_phi[0,P_middle],path_phi[self.N-1,P_middle]]
-                rhoUnswapped *= self.rhoVij_half[path_phi_replica[0,P_middle],path_phi_replica[self.N-1,P_middle]]
-                rhoSwapped *= self.rhoVij_half[path_phi_replica[0,P_middle],path_phi[self.N-1,P_middle]]
-                rhoSwapped *= self.rhoVij_half[path_phi[0,P_middle],path_phi_replica[self.N-1,P_middle]]
-            # Interactions at the partition between A and B
-            rhoUnswapped *= self.rhoVij_half[path_phi[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
-            rhoUnswapped *= self.rhoVij_half[path_phi_replica[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
-            rhoSwapped *= self.rhoVij_half[path_phi_replica[N_partition-1,P_middle],path_phi[N_partition,P_middle]]
-            rhoSwapped *= self.rhoVij_half[path_phi[N_partition-1,P_middle],path_phi_replica[N_partition,P_middle]]
+                # As the rotors are looped through, the only ones that can partake in the swapped/unswapped
+                # configuration are the rotors in the "A" partition
+                for i in range(self.N):
+                    for p in range(self.P): 
+                        p_minus=p-1
+                        p_plus=p+1
+                        if (p_minus<0):
+                            p_minus+=self.P
+                        if (p_plus>=self.P):
+                            p_plus-=self.P  
+                        
+                        # kinetic action
+                        if p==0:
+                            # Special case on the left end of the chain
+                            for ip in range(self.Ngrid):
+                                prob_full[ip]=p_dist_end[ip,path_phi[i,p_plus]]
+                                prob_full_replica[ip]=p_dist_end[ip,path_phi_replica[i,p_plus]]
+                        elif p==(self.P-1):
+                            # Special case on the right end of the chain
+                            for ip in range(self.Ngrid):
+                                prob_full[ip]=p_dist_end[path_phi[i,p_minus],ip]
+                                prob_full_replica[ip]=p_dist_end[path_phi_replica[i,p_minus],ip]
+                        elif (p==P_midLeft) and ((swapped and i < N_partition[1]) or (not swapped and i < N_partition[0])):
+                                # Special case for extended ensemble for the bead to the left of the middle
+                                # This only applies to the "A" partition
+                                for ip in range(self.Ngrid):
+                                    prob_full[ip]=p_dist[path_phi[i,p_minus],ip,path_phi_replica[i,p_plus]]
+                                    prob_full_replica[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi[i,p_plus]] 
+                        elif (p==P_middle) and ((swapped and i < N_partition[1]) or (not swapped and i < N_partition[0])):
+                            # Special case for extended ensemble on the middle bead
+                            # This only applies to the "A" partition
+                            for ip in range(self.Ngrid):
+                                prob_full[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi[i,p_plus]]
+                                prob_full_replica[ip]=p_dist[path_phi[i,p_minus],ip,path_phi_replica[i,p_plus]]
+                        elif (p!=0 and p!=(self.P-1)):
+                            # Interactions for non-swapped and non-end beads
+                            for ip in range(self.Ngrid):
+                                prob_full[ip]=p_dist[path_phi[i,p_minus],ip,path_phi[i,p_plus]]
+                                prob_full_replica[ip]=p_dist[path_phi_replica[i,p_minus],ip,path_phi_replica[i,p_plus]]                         
+                        
+                        # Local on site interaction with the external potential field
+                        if self.V0 != 0.:
+                            if (p==0 or p==(self.P-1)):
+                                # Half interaction at the end beads
+                                for ip in range(self.Ngrid):
+                                    prob_full[ip]*=self.rhoV_half[ip]
+                                    prob_full_replica[ip]*=self.rhoV_half[ip]
+                            else:
+                                for ip in range(self.Ngrid):
+                                    prob_full[ip]*=self.rhoV[ip]
+                                    prob_full_replica[ip]*=self.rhoV[ip]
+                           
+                        # NN interactions and PBC(periodic boundary conditions)              
+                        if (i<(self.N-1)):
+                            # Interaction with right neighbour
+                            if (p==P_middle) and ((swapped and i == (N_partition[1]-1)) or (not swapped and i == (N_partition[0]-1))):
+                                # Swaps the right interaction for the middle bead of the rotor at the partition on the A side
+                                for ir in range(len(prob_full)):
+                                    prob_full[ir]*=self.rhoVij_half[ir,path_phi[i+1,p]]
+                                    prob_full[ir]*=self.rhoVij_half[ir,path_phi_replica[i+1,p]]
+                                    prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi[i+1,p]]
+                                    prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[i+1,p]]
+                            elif (p==0 or p==(self.P-1)):
+                                # Half interaction at the end beads
+                                for ir in range(len(prob_full)):
+                                    prob_full[ir]*=self.rhoVij_half[ir,path_phi[i+1,p]]
+                                    prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[i+1,p]]
+                            else:
+                                for ir in range(len(prob_full)):
+                                    prob_full[ir]*=self.rhoVij[ir,path_phi[i+1,p]]
+                                    prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[i+1,p]]
+                        if (i>0):
+                            # Interaction with left neighbour
+                            if (p==P_middle) and ((swapped and i == (N_partition[1])) or (not swapped and i == (N_partition[0]))):
+                                # Swaps the left interaction for the middle bead of the rotor at the partition on the B side
+                                for ir in range(len(prob_full)):
+                                    prob_full[ir]*=self.rhoVij_half[ir,path_phi[i-1,p]]
+                                    prob_full[ir]*=self.rhoVij_half[ir,path_phi_replica[i-1,p]]
+                                    prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi[i-1,p]]
+                                    prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[i-1,p]]
+                            elif (p==0 or p==(self.P-1)):
+                                # Half interaction at the end beads
+                                for ir in range(len(prob_full)):
+                                    prob_full[ir]*=self.rhoVij_half[ir,path_phi[i-1,p]]
+                                    prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[i-1,p]] 
+                            else:
+                                for ir in range(len(prob_full)):
+                                    prob_full[ir]*=self.rhoVij[ir,path_phi[i-1,p]]
+                                    prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[i-1,p]] 
+                        if (i==0) and (self.N>2):
+                            # Periodic BC for the leftmost rotor, only applies for more than 2 rotors
+                            if (p==P_middle) and (swapped or (not swapped and N_partition[0]>0)):
+                                # Swaps the left interaction for the middle bead of the leftmost rotor
+                                for ir in range(len(prob_full)):
+                                    prob_full[ir]*=self.rhoVij_half[ir,path_phi[self.N-1,p]]
+                                    prob_full[ir]*=self.rhoVij_half[ir,path_phi_replica[self.N-1,p]]
+                                    prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi[self.N-1,p]]
+                                    prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[self.N-1,p]]
+                            elif (p==0 or p==(self.P-1)):
+                                # Half interaction at the end beads
+                                for ir in range(len(prob_full)):
+                                    prob_full[ir]*=self.rhoVij_half[ir,path_phi[self.N-1,p]]
+                                    prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[self.N-1,p]]
+                            else:
+                                for ir in range(len(prob_full)):
+                                    prob_full[ir]*=self.rhoVij[ir,path_phi[self.N-1,p]]
+                                    prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[self.N-1,p]]
+                        if (i==(self.N-1)) and (self.N>2):
+                            # Periodic BC for the rightmost rotor, only applies for more than 2 rotors
+                            if (p==P_middle) and (swapped or (not swapped and N_partition[0]>0)):
+                                # Swaps the right interaction for the middle bead of the rightmost rotor
+                                for ir in range(len(prob_full)):
+                                    prob_full[ir]*=self.rhoVij_half[ir,path_phi[0,p]]
+                                    prob_full[ir]*=self.rhoVij_half[ir,path_phi_replica[0,p]]
+                                    prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi[0,p]]
+                                    prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[0,p]]
+                            elif (p==0 or p==(self.P-1)):
+                                # Half interaction at the end beads
+                                for ir in range(len(prob_full)):
+                                    prob_full[ir]*=self.rhoVij_half[ir,path_phi[0,p]]
+                                    prob_full_replica[ir]*=self.rhoVij_half[ir,path_phi_replica[0,p]]
+                            else:
+                                for ir in range(len(prob_full)):
+                                    prob_full[ir]*=self.rhoVij[ir,path_phi[0,p]]
+                                    prob_full_replica[ir]*=self.rhoVij[ir,path_phi_replica[0,p]]
+                        
+                        # Normalize
+                        norm_pro=0.
+                        norm_pro_replica=0.
+                        for ir in range(len(prob_full)):
+                            norm_pro+=prob_full[ir]
+                            norm_pro_replica+=prob_full_replica[ir]
+                        for ir in range(len(prob_full)):
+                            prob_full[ir]/=norm_pro
+                            prob_full_replica[ir]/=norm_pro_replica
+                        index=rng.choice(self.Ngrid,1, p=prob_full)
+                        index_replica=rng.choice(self.Ngrid,1, p=prob_full_replica)
+                        
+                        # Rejection free sampling
+                        path_phi[i,p] = index
+                        path_phi_replica[i,p] = index_replica
+                        
+                    # End of bead loop
+                # End of rotor loop
+                
+                # Metropolis critereon
+                
+                # The interaction with the external potential field is ignored, as this will
+                # be the same for both the swapped and unswapped ensembles
+                # Any unchanged interactions (kinetic or potential) between the swapped and
+                # unswapped configurations are not calculated
+                
+                rhoUnswapped = 1.
+                rhoSwapped = 1.
+                
+                # Kinetic contribution from the swapped interactions in the A partition
+                ##########################################################
+                # This needs to be double checked, should this be multiplying the middle and midleft bead or is this double counting?
+                
+                for i_diff in range(N_partition[1]-N_partition[0]):
+                    # This looks only at kinetic links that are different, if the ratio trick is employed this loops once
+                    i = i_diff + N_partition[0]
+                    # Middle bead
+                    rhoUnswapped *= p_dist[path_phi[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
+                    rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
+                    # Bead to the left of the middle
+                    rhoUnswapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi[i,P_middle]]
+                    rhoUnswapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi_replica[i,P_middle]]
                     
-            # Determing if we should be sampling the swapped or unswapped distribution
-            if swapped:
-                ratio = rhoUnswapped/rhoSwapped
-                if ratio > 1:
-                    swapped = False
-                elif ratio > np.random.uniform():
-                    swapped = False
-            elif not swapped:
-                ratio = rhoSwapped/rhoUnswapped
-                if ratio > 1:
-                    swapped = True
-                elif ratio > np.random.uniform():
-                    swapped = True  
+                    # Middle bead
+                    rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft],path_phi[i,P_middle],path_phi[i,P_middle+1]]
+                    rhoSwapped *= p_dist[path_phi[i,P_midLeft],path_phi_replica[i,P_middle],path_phi_replica[i,P_middle+1]]
+                    # Bead to the left of the middle
+                    rhoSwapped *= p_dist[path_phi[i,P_midLeft-1],path_phi[i,P_midLeft],path_phi_replica[i,P_middle]]
+                    rhoSwapped *= p_dist[path_phi_replica[i,P_midLeft-1],path_phi_replica[i,P_midLeft],path_phi[i,P_middle]]
+                    
+                # Potential contribution, this only impacts the middle bead interactions where the two partitions differ
+                i0 = N_partition[0] - 1
+                if i0<0:
+                    i0 += self.N
+                i1 = N_partition[0]
+                # This only applies for more than 2 rotors, it encompases the PBCs for N_partition=[0,x]
+                if (self.N>2):
+                    rhoUnswapped *= self.rhoVij_half[path_phi[i0,P_middle],path_phi[i1,P_middle]]
+                    rhoUnswapped *= self.rhoVij_half[path_phi_replica[i0,P_middle],path_phi_replica[i1,P_middle]]
+                    rhoSwapped *= self.rhoVij_half[path_phi_replica[i0,P_middle],path_phi[i1,P_middle]]
+                    rhoSwapped *= self.rhoVij_half[path_phi[i0,P_middle],path_phi_replica[i1,P_middle]]
+                
+                j0 = N_partition[1] - 1
+                j1 = N_partition[1]
+                rhoUnswapped *= self.rhoVij_half[path_phi[j0,P_middle],path_phi[j1,P_middle]]
+                rhoUnswapped *= self.rhoVij_half[path_phi_replica[j0,P_middle],path_phi_replica[j1,P_middle]]
+                rhoSwapped *= self.rhoVij_half[path_phi_replica[j0,P_middle],path_phi[j1,P_middle]]
+                rhoSwapped *= self.rhoVij_half[path_phi[j0,P_middle],path_phi_replica[j1,P_middle]]
+                        
+                # Determing if we should be sampling the swapped or unswapped distribution
+                if swapped:
+                    ratio = rhoUnswapped/rhoSwapped
+                    if ratio > 1:
+                        swapped = False
+                    elif ratio > np.random.uniform():
+                        swapped = False
+                elif not swapped:
+                    ratio = rhoSwapped/rhoUnswapped
+                    if ratio > 1:
+                        swapped = True
+                    elif ratio > np.random.uniform():
+                        swapped = True  
+                
+                rSwapped_arr[n] = N_swapped / (n+1)
+                rUnswapped_arr[n] = N_unswapped / (n+1)
+            # End of MC Step loop
             
-            rSwapped_arr[n] = N_swapped / (n+1)
-            rUnswapped_arr[n] = N_unswapped / (n+1)
-            
-        traj_out.close()
+            # Finding the average and standard error in the purity using the binning method
+            meanSwapped, errSwapped = calculateError_byBinning(rSwapped_arr)
+            meanUnswapped, errUnswapped = calculateError_byBinning(rUnswapped_arr)
+            purity_arr[i_partition] = meanSwapped/meanUnswapped
+            purity_err_arr[i_partition] = abs(purity_arr[i_partition]) * np.sqrt((errUnswapped/meanUnswapped)**2 + (errSwapped/meanSwapped)**2)
+        # End of partition loop
         
-        # Finding the average and standard error in the purity using the binning method
-        meanSwapped, errSwapped = calculateError_byBinning(rSwapped_arr)
-        meanUnswapped, errUnswapped = calculateError_byBinning(rUnswapped_arr)
-        purity = meanSwapped/meanUnswapped
-        err_purity = abs(purity) * np.sqrt((errUnswapped/meanUnswapped)**2 + (errSwapped/meanSwapped)**2)
-        entropy = -np.log(purity)
-        err_entropy  = abs(err_purity)/purity
+        # Calculating the average and standard error in the entropy
+        if (np.shape(N_partitions)[0] > 1):
+            purity = np.prod(purity_arr, axis=0)
+            entropy = -np.log(purity)
+            err_purity = abs(purity)*np.sqrt(np.sum(np.square(np.divide(purity_err_arr, purity_arr))))
+            err_entropy = abs(err_purity)/purity
+        else:
+            purity = purity_arr[0]
+            entropy = -np.log(purity)
+            err_purity = purity_err_arr[0]
+            err_entropy = abs(err_purity)/purity
+        
         self.S2 = entropy
         self.S2_stdError = err_entropy
         
         print('S2 = ', str(self.S2))
-        
-        # Creating arrays to store the overall system's distribution
-        histoPIMC_total=np.zeros(self.Ngrid,float)
-        histoMiddle_total=np.zeros(self.Ngrid,float)
-        histoLeft_total=np.zeros(self.Ngrid,float)
-        histoRight_total=np.zeros(self.Ngrid,float)
-        
-        # Saving the individual rotor distributions and accumulating the total distributions
-        self.histo_N = {}
-        for n in range(self.N):
-            histoPIMC_total += histoPIMC_N[n]
-            histoMiddle_total += histoMiddle_N[n]
-            histoLeft_total += histoLeft_N[n]
-            histoRight_total += histoRight_N[n]
-
-            histoN_arr = np.zeros((self.Ngrid,5))
-            histoN_out = open(os.path.join(self.path,'histo_N'+str(n)),'w')
-            for i in range(self.Ngrid):
-                histoN_out.write(str(i*self.delta_phi) + ' ' +
-                                 str(histoPIMC_N[n][i]/(self.MC_steps*self.P)/self.delta_phi) + ' ' +
-                                 str(histoMiddle_N[n][i]/(self.MC_steps)/self.delta_phi) + ' ' +
-                                 str(histoLeft_N[n][i]/(self.MC_steps)/self.delta_phi) + ' ' +
-                                 str(histoRight_N[n][i]/(self.MC_steps)/self.delta_phi) +'\n')
-                histoN_arr[i,:] = [i*self.delta_phi,
-                                   histoPIMC_N[n][i]/(self.MC_steps*self.P)/self.delta_phi,
-                                   histoMiddle_N[n][i]/(self.MC_steps)/self.delta_phi,
-                                   histoLeft_N[n][i]/(self.MC_steps)/self.delta_phi,
-                                   histoRight_N[n][i]/(self.MC_steps)/self.delta_phi]
-            self.histo_N.update({n: histoN_arr})
-            histoN_out.close()   
-            
-        # Saving the overall and initial distributions
-        self.histo_total = np.zeros((self.Ngrid,5))
-        self.histo_initial = np.zeros((self.Ngrid,2))
-        histo_out = open(os.path.join(self.path,'histo_test_total'),'w')
-        histo_init_out = open(os.path.join(self.path,'histo_initial'),'w')
-        for i in range(self.Ngrid):
-            histo_out.write(str(i*self.delta_phi) + ' ' +
-                            str(histoPIMC_total[i]/(self.MC_steps*self.N*self.P)/self.delta_phi) + ' ' +
-                            str(histoMiddle_total[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                            str(histoLeft_total[i]/(self.MC_steps*self.N)/self.delta_phi) + ' ' +
-                            str(histoRight_total[i]/(self.MC_steps*self.N)/self.delta_phi) + '\n')
-            self.histo_total[i,:] = [i*self.delta_phi, 
-                                    histoPIMC_total[i]/(self.MC_steps*self.N*self.P)/self.delta_phi,
-                                    histoMiddle_total[i]/(self.MC_steps*self.N)/self.delta_phi,
-                                    histoLeft_total[i]/(self.MC_steps*self.N)/self.delta_phi,
-                                    histoRight_total[i]/(self.MC_steps*self.N)/self.delta_phi]
-            histo_init_out.write(str(i*self.delta_phi) + ' ' + 
-                                 str(histo_initial[i]/(self.N*self.P)/self.delta_phi)+'\n')
-            self.histo_initial[i,:] = [i*self.delta_phi,
-                                       histo_initial[i]/(self.N*self.P)/self.delta_phi] 
-        histo_out.close()
-        
+    
     def plotRho(self, rhoList):
         """
         Plots and saves the specified density matrices.
