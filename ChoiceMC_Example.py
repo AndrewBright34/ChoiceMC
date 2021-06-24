@@ -1,6 +1,6 @@
 # Sample code for the ChoiceMC implementation
 from ChoiceMC import ChoiceMC
-PIMC = ChoiceMC(m_max=15, P=9, g=1, MC_steps=1000, N=2, PIGS=True, Nskip=100, Nequilibrate=100, V0=20, potentialField='transverse')   
+PIMC = ChoiceMC(m_max=15, P=9, g=1, MC_steps=1000, N=2, PIGS=True, Nskip=100, Nequilibrate=100, V0=20, potentialField='transverse', t=0.25)   
 # Creating the probability density matrix for each rotor
 PIMC.createFreeRhoMarx()
 # Creating the probability density matrix for nearest neighbour interactions

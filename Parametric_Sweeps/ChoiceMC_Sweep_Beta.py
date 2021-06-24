@@ -114,7 +114,7 @@ for N in N_sweep:
             ax.set_ylabel(r'$E_0$')
             ax.legend(loc=1)
             ax.minorticks_on()
-        E_fig.suptitle(r'N = ' + str(N) + '; $\beta$ = ' + str(PIMC.beta) + r' $K^{-1}$')
+        E_fig.suptitle('N = ' + str(N) + r'; $\beta$ = ' + str(PIMC.beta) + r' $K^{-1}$')
         E_fig.tight_layout()
         E_fig.savefig("EnergyOverlayed_beta" + str(round(PIMC.beta,3)) + ".png")
         
@@ -129,7 +129,7 @@ for N in N_sweep:
             ax.set_ylabel('Orientational Correlation')
             ax.legend(loc=4)
             ax.minorticks_on()
-        O_fig.suptitle(r'N = ' + str(N) + '; $\beta$ = ' + str(PIMC.beta) + r' $K^{-1}$')
+        O_fig.suptitle('N = ' + str(N) + r'; $\beta$ = ' + str(PIMC.beta) + r' $K^{-1}$')
         O_fig.tight_layout()
         O_fig.savefig("OrienCorrOverlayed_beta" + str(round(PIMC.beta,3)) + ".png")
         plt.close('all')

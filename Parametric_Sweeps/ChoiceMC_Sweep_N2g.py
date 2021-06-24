@@ -14,7 +14,7 @@ parent_dir = os.getcwd()
 # Parameters
 # This temperature results in beta of 4.0, which was determined to relax the system to the ground state as long as tau>0.1
 T = 0.25
-N_sweep = [2, 4, 16, 64, 256, 1028]
+
 # These are chosen to sweep the tau values, to extrapolate and get a fit PIGS value
 P_sweep = [39, 25, 19, 15]
 N = 2
