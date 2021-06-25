@@ -5,12 +5,12 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 import os
 
-def pot_func(phi,V):
-    pot=V*(1.+np.cos(phi))
+def pot_func_Parallel(phi,V):
+    pot = V * (1. + np.cos(phi))
     return pot
 
-def pot_funcS(phi,V):
-    pot=V*(1.+np.sin(phi))
+def pot_func_Transverse(phi,V):
+    pot = V * (1. + np.sin(phi))
     return pot
 
 def Vij(p1,p2,g):
@@ -241,11 +241,12 @@ class ChoiceMC(object):
         self.T = T
         self.B = B
         self.V0 = V0
+
         # Setting which potential function will be used
         if potentialField == "transverse":
-            self.potFunc = pot_funcS
+            self.potFunc = pot_func_Transverse
         elif potentialField == 'parallel':
-            self.potFunc = pot_func
+            self.potFunc = pot_func_Parallel
         else:
             raise Exception("Unrecognized potential model, allowed models are transverse or parallel")
         
@@ -293,6 +294,7 @@ class ChoiceMC(object):
         TO ADD
         -------
         Add calculations for non-PIGS simulations
+        Fix calculations for external fields
         '''
         # Throwing a warning if the MC object currently being tested does not have 2 rotors
         if self.N != 2:
@@ -310,6 +312,7 @@ class ChoiceMC(object):
         
         # Creating the Hamiltonian
         H = np.zeros((size2,size2), float)
+        H_im = np.zeros((size2,size2), float)
         for m1 in range(self.Ngrid):
             for m2 in range(self.Ngrid):
                 for m1p in range(self.Ngrid):
@@ -320,10 +323,24 @@ class ChoiceMC(object):
                             H[m1*size + m2, m1p*size + m2p] += B * float((-mMax+m2)**2)
                         # Potential contribution
                         H[m1*size + m2, m1p*size + m2p] += g * (-1*sin_mmp[m1,m1p]*sin_mmp[m2,m2p] - 2*cos_mmp[m1,m1p]*cos_mmp[m2,m2p])
-        
+                                                                
+                        if self.V0!=0 and self.potFunc == pot_func_Transverse:
+                            if m1==m1p:
+                                H_im[m1*size + m2, m1p*size + m2p] += self.V0*(1.0 + sin_mmp[m2,m2p])
+                            if m2==m2p:
+                                H_im[m1*size + m2, m1p*size + m2p] += self.V0*(1.0 + sin_mmp[m1,m1p])
+                        elif self.V0!=0 and self.potFunc == pot_func_Parallel:
+                            if m1==m1p:
+                                H[m1*size + m2, m1p*size + m2p] += self.V0*(1.0 + cos_mmp[m2,m2p])
+                            if m2==m2p:
+                                H[m1*size + m2, m1p*size + m2p] += self.V0*(1.0 + cos_mmp[m1,m1p])     
         
         # Finding the eigenavalues and eigenvectors
-        evals, evecs = np.linalg.eigh(H)
+        if self.V0!=0 and self.potFunc == pot_func_Transverse:
+            evals, evecs = np.linalg.eigh(H + 1j*H_im) 
+        else:
+            evals, evecs = np.linalg.eigh(H)
+            
         # Evaluating the observables
         E0 = evals[0]
         e1_dot_e2 = 0.
@@ -331,7 +348,7 @@ class ChoiceMC(object):
             for m2 in range(self.Ngrid):
                 for m1p in range(self.Ngrid):
                     for m2p in range(self.Ngrid):
-                        e1_dot_e2 += evecs[m1*size + m2,0]*evecs[m1p*size + m2p,0]*(-1*sin_mmp[m1,m1p]*sin_mmp[m2,m2p] + cos_mmp[m1,m1p]*cos_mmp[m2,m2p])
+                        e1_dot_e2 += evecs[m1*size + m2,0]*np.conjugate(evecs[m1p*size + m2p,0])*(-1*sin_mmp[m1,m1p]*sin_mmp[m2,m2p] + cos_mmp[m1,m1p]*cos_mmp[m2,m2p])
                         # <0|m1 m2> <m1 m2|e1.e2|m1p m2p> <m1p m2p|0> = <0|e1.e2|0>
         
         # Finding the second renyi entropy
@@ -340,7 +357,7 @@ class ChoiceMC(object):
         for m1 in range(self.Ngrid):
             for m1p in range(self.Ngrid):
                 for m2 in range(self.Ngrid):
-                    rhoA[m1,m1p] += evecs[m1*size + m2,0]*evecs[m1p*size + m2,0]
+                    rhoA[m1,m1p] += np.real(evecs[m1*size + m2,0]*np.conjugate(evecs[m1p*size + m2,0]))
         # Diagonalize rhoA
         rhoA_E, rhoA_EV = np.linalg.eigh(rhoA)
         S2 = 0.
@@ -397,8 +414,9 @@ class ChoiceMC(object):
         rho_free_2body = np.zeros((size2,size2), float)
         for i1 in range(size):
             for i2 in range(size):
-                rho_potential[i1*size+i2,i1*size+i2] = np.exp(-0.5*tau*Vij(i1*self.delta_phi, i2*self.delta_phi, self.g))
-                potential[i1*size+i2] = Vij(i1*self.delta_phi, i2*self.delta_phi, self.g)
+                potential[i1*size+i2] += Vij(i1*self.delta_phi, i2*self.delta_phi, self.g)
+                potential[i1*size+i2] += self.potFunc(float(i1)*self.delta_phi,self.V0) + self.potFunc(float(i2)*self.delta_phi,self.V0)
+                rho_potential[i1*size+i2,i1*size+i2] = np.exp(-0.5*tau*potential[i1*size+i2])
                 for i1p in range(size):
                     for i2p in range(size):
                         rho_free_2body[i1*size+i2,i1p*size+i2p] = rho_free_1body[i1,i1p] * rho_free_1body[i2,i2p]
