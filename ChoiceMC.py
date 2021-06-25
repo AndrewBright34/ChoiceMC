@@ -1134,10 +1134,15 @@ class ChoiceMC(object):
 
         Returns
         -------
-        self.S2: float
+        self.S2_MC: float
             The resultant second Renyi entropy
         self.S2_stdError: float
             The resultant standard error in the second Renyi entropy
+        self.AR_MC_arr: np.array
+            An N//2+1 x 1 array containing the acceptance ratios of each of the
+            partitions.
+        self.AR_MC: float
+            The total acceptance ratio for all swap/unswap evaluations
 
         """
         
@@ -1173,6 +1178,9 @@ class ChoiceMC(object):
         
         purity_arr = np.zeros(np.shape(N_partitions)[0], float)
         purity_err_arr = np.zeros(np.shape(N_partitions)[0], float)
+        
+        acceptRatio_accepted = np.zeros(np.shape(N_partitions)[0]+1, float)
+        acceptRatio_total = np.zeros(np.shape(N_partitions)[0]+1, float)
         
         for i_partition, N_partition in enumerate(N_partitions):
             
@@ -1213,6 +1221,7 @@ class ChoiceMC(object):
             
             prob_full=np.zeros(self.Ngrid,float)
             prob_full_replica=np.zeros(self.Ngrid,float)
+            
             
             for n in range(self.MC_steps):
                 # Entanglement estimators
@@ -1417,16 +1426,23 @@ class ChoiceMC(object):
                 # Determing if we should be sampling the swapped or unswapped distribution
                 if swapped:
                     ratio = rhoUnswapped/rhoSwapped
+                    acceptRatio_total[i_partition] += 1
                     if ratio > 1:
                         swapped = False
+                        acceptRatio_accepted[i_partition] += 1
                     elif ratio > np.random.uniform():
                         swapped = False
+                        acceptRatio_accepted[i_partition] += 1
                 elif not swapped:
                     ratio = rhoSwapped/rhoUnswapped
+                    acceptRatio_total[i_partition+1] += 1
                     if ratio > 1:
                         swapped = True
+                        acceptRatio_accepted[i_partition+1] += 1
                     elif ratio > np.random.uniform():
-                        swapped = True  
+                        swapped = True
+                        acceptRatio_accepted[i_partition+1] += 1
+                        
                 
                 rSwapped_arr[n] = N_swapped / (n+1)
                 rUnswapped_arr[n] = N_unswapped / (n+1)
@@ -1451,10 +1467,12 @@ class ChoiceMC(object):
             err_purity = purity_err_arr[0]
             err_entropy = abs(err_purity)/purity
         
-        self.S2 = entropy
-        self.S2_stdError = err_entropy
+        self.S2_MC = entropy
+        self.S2_stdError_MC = err_entropy
+        self.AR_MC_arr = acceptRatio_accepted/acceptRatio_total
+        self.AR_MC = np.sum(acceptRatio_accepted) / np.sum(acceptRatio_total)
         
-        print('S2 = ', str(self.S2))
+        print('S2 = ', str(self.S2_MC))
     
     def plotRho(self, rhoList):
         """

@@ -123,7 +123,7 @@ for N in N_sweep:
         for i, g in enumerate(g_sweep):
             ax = O_fig.add_subplot((len(g_sweep)+1)//2, 2, i+1)
             for mMax in mMax_dict_O:
-                ax.errorbar(mMax_dict_O[mMax][g][:,0], mMax_dict_O[mMax][g][:,1], mMax_dict_E[mMax][g][:,2], fmt='.-', capsize=3, label=r'$PIGS:\ M_{Max}$='+ str(mMax))
+                ax.errorbar(mMax_dict_O[mMax][g][:,0], mMax_dict_O[mMax][g][:,1], mMax_dict_O[mMax][g][:,2], fmt='.-', capsize=3, label=r'$PIGS:\ M_{Max}$='+ str(mMax))
             ax.annotate('g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
             ax.set_xlabel(r'$\tau\ (K^{-1})$')
             ax.set_ylabel('Orientational Correlation')
