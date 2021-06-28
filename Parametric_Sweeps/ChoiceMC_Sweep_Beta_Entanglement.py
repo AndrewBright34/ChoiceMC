@@ -158,7 +158,7 @@ for N in N_sweep:
     
         T_sweep = []
         for P in P_sweep:
-            T_sweep.append(1./(tau*P))
+            T_sweep.append(1./(tau*(P-1)))
     
         # Creating dictionaries to store the results from the g and N sweep
         g_sweep_dict_S2 = {}
@@ -239,9 +239,9 @@ for N in N_sweep:
                 ax.set_xlabel(r'$\beta\ (K^{-1})$')
         S2_fig.suptitle(r'$\tau\ =\ $' + str(tau))
         S2_fig.tight_layout()
-        S2_fig.savefig("SecondRenyiEntropy_gBetaSweep" + str(tau) + ".png")
+        S2_fig.savefig("SecondRenyiEntropy_gBetaSweep_tau" + str(tau) + ".png")
         
-        # Plotting the orientational correlations versus g for varied mMax
+        # Plotting the purity versus g for varied mMax
         fig = plt.figure(figsize=(8,3*((len(g_sweep)+1)//2)))
         xlim = 0.
         for i, g in enumerate(g_sweep_dict_purity):

@@ -159,7 +159,7 @@ for N in N_sweep:
     
         T_sweep = []
         for P in P_sweep:
-            T_sweep.append(1./(tau*P))
+            T_sweep.append(1./(tau*(P-1)))
     
         # Creating dictionaries to store the results from the g and N sweep
         g_sweep_dict_E = {}
@@ -243,7 +243,7 @@ for N in N_sweep:
                 ax.set_xlabel(r'$\beta\ (K^{-1})$')
         E_fig.suptitle(r'$\tau\ =\ $' + str(tau))
         E_fig.tight_layout()
-        E_fig.savefig("Energy_gBetaSweep" + str(tau) + ".png")
+        E_fig.savefig("Energy_gBetaSweep_tau" + str(tau) + ".png")
         
         # Plotting the orientational correlations versus g for varied mMax
         O_fig = plt.figure(figsize=(8,3*((len(g_sweep)+1)//2)))
