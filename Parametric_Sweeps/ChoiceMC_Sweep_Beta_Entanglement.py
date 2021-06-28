@@ -39,19 +39,19 @@ for N in N_sweep:
     T_sweep = [0.25, 0.5, 1.]
     for T in T_sweep:
         mMax_dict_S2 = {}
-        mMax_dict_AR = {}
+        mMax_dict_purity = {}
         P_sweep = []
         for tau in tau_sweep:
             P_sweep.append(int(np.ceil(1+1/(tau*T))//2*2+1))
         P_sweep = np.unique(np.array(P_sweep))
         for mMax in mMax_sweep:
             g_sweep_dict_S2 = {}
-            g_sweep_dict_AR = {}
+            g_sweep_dict_purity = {}
             for ig, g in enumerate(g_sweep):
                 entropy = np.zeros((len(P_sweep),3), float)
                 entropy_out = open(os.path.join(data_path,"SecondRenyiEntropy_mMax" + str(mMax) + "_beta" + str(round(1/T,3)) + "_g" + str(g) + '.dat'),'w')
-                acceptRatio = np.zeros((len(P_sweep),2), float)
-                acceptRatio_out = open(os.path.join(data_path,"AcceptRatio_mMax" + str(mMax) + "_beta" + str(round(1/T,3)) + "_g" + str(g) + '.dat'),'w')
+                purity = np.zeros((len(P_sweep),3), float)
+                purity_out = open(os.path.join(data_path,"Purity_mMax" + str(mMax) + "_beta" + str(round(1/T,3)) + "_g" + str(g) + '.dat'),'w')
                 for iP, P in enumerate(P_sweep):
                     PIMC = ChoiceMC(m_max=mMax, P=P, g=g, MC_steps=100000, N=N, PIGS=True, Nskip=100, Nequilibrate=100, T=T)
                     # Creating the probability density matrix for each rotor
@@ -63,13 +63,13 @@ for N in N_sweep:
                     
                     entropy[iP,:] = [PIMC.tau, PIMC.S2_MC, PIMC.S2_stdError_MC]
                     entropy_out.write(str(PIMC.tau) + ' ' + str(PIMC.S2_MC) + ' ' + str(PIMC.S2_stdError_MC) + '\n')
-                    acceptRatio[iP,:] = [PIMC.tau, PIMC.AR_MC]
-                    acceptRatio_out.write(str(PIMC.tau) + ' ' + str(PIMC.AR_MC) + '\n')
+                    purity[iP,:] = [PIMC.tau, PIMC.purity_MC, PIMC.purity_stdError_MC]
+                    purity_out.write(str(PIMC.tau) + ' ' + str(PIMC.purity_MC) + ' ' + str(PIMC.purity_stdError_MC) + '\n')
                 
                 g_sweep_dict_S2.update({g: entropy})
-                g_sweep_dict_AR.update({g: acceptRatio})
+                g_sweep_dict_purity.update({g: purity})
                 entropy_out.close()
-                acceptRatio_out.close()
+                purity_out.close()
                 plt.close('all')
             
             # Plotting the second renyi entropy
@@ -85,22 +85,22 @@ for N in N_sweep:
             S2_fig.tight_layout()
             S2_fig.savefig("SecondRenyiEntropy_mMax" + str(mMax) + "_beta" + str(round(PIMC.beta,3)) + ".png")
             
-            # Plotting the acceptance ratio
+            # Plotting the purity
             fig = plt.figure(figsize=(8,3*((len(g_sweep)+1)//2)))
             for i, g in enumerate(g_sweep_dict_S2):
                 ax = fig.add_subplot((len(g_sweep)+1)//2, 2, i+1)
-                ax.plot(g_sweep_dict_AR[g][:,0], g_sweep_dict_AR[g][:,1], marker='o', color='k')
+                ax.errorbar(g_sweep_dict_purity[g][:,0], g_sweep_dict_purity[g][:,1], g_sweep_dict_purity[g][:,2], fmt='.-', capsize=3, color='k')
                 ax.annotate('N = ' + str(N) + '; g = ' + str(g) + r'$;\ M_{Max}$' + ' = ' + str(mMax), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
                 ax.set_xlabel(r'$\tau\ (K^{-1})$')
-                ax.set_ylabel('Acceptance Ratio')
+                ax.set_ylabel('Purity')
                 ax.minorticks_on()
             fig.suptitle(r'$\beta$ = ' + str(PIMC.beta) + r' $K^{-1}$')
             fig.tight_layout()
-            fig.savefig("AcceptanceRatio_mMax" + str(mMax) + "_beta" + str(round(PIMC.beta,3)) + ".png")
+            fig.savefig("Purity_mMax" + str(mMax) + "_beta" + str(round(PIMC.beta,3)) + ".png")
             
             plt.close('all')
             mMax_dict_S2.update({mMax: g_sweep_dict_S2})
-            mMax_dict_AR.update({mMax: g_sweep_dict_AR})
+            mMax_dict_purity.update({mMax: g_sweep_dict_purity})
     
         # Plotting the second renyi entropy versus g for varied mMax
         S2_fig = plt.figure(figsize=(8,3*((len(g_sweep)+1)//2)))
@@ -117,20 +117,20 @@ for N in N_sweep:
         S2_fig.tight_layout()
         S2_fig.savefig("SecondRenyiEntropyOverlayed_beta" + str(round(PIMC.beta,3)) + ".png")
         
-        # Plotting the acceptance ratio versus g for varied mMax
+        # Plotting the purity versus g for varied mMax
         fig = plt.figure(figsize=(8,3*((len(g_sweep)+1)//2)))
         for i, g in enumerate(g_sweep):
             ax = fig.add_subplot((len(g_sweep)+1)//2, 2, i+1)
-            for mMax in mMax_dict_AR:
-                ax.plot(mMax_dict_AR[mMax][g][:,0], mMax_dict_AR[mMax][g][:,1], marker='o', label=r'$PIGS:\ M_{Max}$='+ str(mMax))
+            for mMax in mMax_dict_purity:
+                ax.errorbar(mMax_dict_purity[mMax][g][:,0], mMax_dict_purity[mMax][g][:,1], mMax_dict_purity[mMax][g][:,2], fmt='.-', capsize=3, label=r'$PIGS:\ M_{Max}$='+ str(mMax))
             ax.annotate('g = ' + str(g), xy=(0.5, 0.95),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
             ax.set_xlabel(r'$\tau\ (K^{-1})$')
-            ax.set_ylabel('Acceptance Ratio')
+            ax.set_ylabel('Purity')
             ax.legend(loc=4)
             ax.minorticks_on()
         fig.suptitle('N = ' + str(N) + r'; $\beta$ = ' + str(PIMC.beta) + r' $K^{-1}$')
         fig.tight_layout()
-        fig.savefig("AcceptanceRatioOverlayed_beta" + str(round(PIMC.beta,3)) + ".png")
+        fig.savefig("PurityOverlayed_beta" + str(round(PIMC.beta,3)) + ".png")
         plt.close('all')
 
 # Sweeping over beta values, to ensure that the beta selected will relax the system to the ground state
@@ -162,7 +162,7 @@ for N in N_sweep:
     
         # Creating dictionaries to store the results from the g and N sweep
         g_sweep_dict_S2 = {}
-        g_sweep_dict_AR = {}
+        g_sweep_dict_purity = {}
         # Performing the sweep over mMax
         for ig, g in enumerate(g_sweep):
             print("------------------------------------------------")
@@ -171,8 +171,8 @@ for N in N_sweep:
             # Creating arrays to store the E, V and O versus g data
             entropy = np.zeros((len(T_sweep),3), float)
             entropy_out = open(os.path.join(data_path,"SecondRenyiEntropy_g" + str(g) + '.dat'),'w')
-            acceptRatio = np.zeros((len(T_sweep),2), float)
-            acceptRatio_out = open(os.path.join(data_path,"AcceptanceRatio_g" + str(g) + '.dat'),'w')
+            purity = np.zeros((len(T_sweep),3), float)
+            purity_out = open(os.path.join(data_path,"Purity_g" + str(g) + '.dat'),'w')
         
             for i, T in enumerate(T_sweep):
                 print("------------------------------------------------")
@@ -190,8 +190,8 @@ for N in N_sweep:
                 # Storing and saving the data from the current run
                 entropy[i,:] = [PIMC.beta, PIMC.S2_MC, PIMC.S2_stdError_MC]
                 entropy_out.write(str(PIMC.beta) + ' ' + str(PIMC.S2_MC) + ' ' + str(PIMC.S2_stdError_MC) + '\n')
-                acceptRatio[i,:] = [PIMC.beta, PIMC.AR_MC]
-                acceptRatio_out.write(str(PIMC.beta) + ' ' + str(PIMC.AR_MC) + '\n')
+                purity[i,:] = [PIMC.beta, PIMC.purity_MC, PIMC.purity_stdError_MC]
+                purity_out.write(str(PIMC.beta) + ' ' + str(PIMC.purity_MC) + ' ' + str(PIMC.purity_stdError_MC) + '\n')
                     
                 # Closing the remaining open plots
                 plt.close('all')
@@ -207,18 +207,18 @@ for N in N_sweep:
             S2_fig.savefig(os.path.join(data_path,"SecondRenyiEntropy_g" + str(g) + ".png"))
             
             fig, ax = plt.subplots(1, 1, figsize=(8,5))
-            ax.plot(acceptRatio[:,0], acceptRatio[:,1], label='PIGS', marker='o')
+            ax.errorbar(purity[:,0], purity[:,1], purity[:,2], label='PIGS', fmt='.-', capsize=3)
             ax.set_xlabel(r'$\beta (K^{-1})$')
-            ax.set_ylabel("Acceptance Ratio")
+            ax.set_ylabel("Purity")
             ax.annotate('N = ' + str(N) + '; g = ' + str(g), xy=(0.5, 0.1),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
             ax.minorticks_on()
             fig.tight_layout()
-            fig.savefig(os.path.join(data_path,"AcceptanceRatio_g" + str(g) + ".png"))
+            fig.savefig(os.path.join(data_path,"Purity_g" + str(g) + ".png"))
             
             g_sweep_dict_S2.update({g: entropy})
-            g_sweep_dict_AR.update({g: acceptRatio})
+            g_sweep_dict_purity.update({g: purity})
             entropy_out.close()
-            acceptRatio_out.close()
+            purity_out.close()
             plt.close('all')
             
         # Plotting the energy versus g for varied mMax
@@ -244,22 +244,22 @@ for N in N_sweep:
         # Plotting the orientational correlations versus g for varied mMax
         fig = plt.figure(figsize=(8,3*((len(g_sweep)+1)//2)))
         xlim = 0.
-        for i, g in enumerate(g_sweep_dict_AR):
+        for i, g in enumerate(g_sweep_dict_purity):
             ax = fig.add_subplot((len(g_sweep)+1)//2, 2, i+1)
-            ax.plot(g_sweep_dict_AR[g][:,0], g_sweep_dict_AR[g][:,1], label='PIGS', marker='o')
+            ax.errorbar(g_sweep_dict_purity[g][:,0], g_sweep_dict_purity[g][:,1], g_sweep_dict_purity[g][:,2], label='PIGS', fmt='.-', capsize=3)
             ax.annotate('N = ' + str(N) + '; g = ' + str(g), xy=(0.5, 0.1),  xycoords='axes fraction', horizontalalignment='center', verticalalignment='top')
             if i == 0:
                 xlim = ax.get_xlim()
             else:
                 ax.set_xlim(xlim)
-            ax.set_ylabel('Acceptance Ratio')
+            ax.set_ylabel('Purity')
             ax.minorticks_on()
             ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
             if i+1 == 2*((len(g_sweep)+1)//2) or i+1 == 2*((len(g_sweep)+1)//2)-1:
                 ax.set_xlabel(r'$\beta\ (K^{-1})$')
         fig.suptitle(r'$\tau\ =\ $' + str(tau))
         fig.tight_layout()
-        fig.savefig("AcceptanceRatio_gBetaSweep_tau" + str(tau) + ".png")
+        fig.savefig("Purity_gBetaSweep_tau" + str(tau) + ".png")
         
         plt.close("all")
         
