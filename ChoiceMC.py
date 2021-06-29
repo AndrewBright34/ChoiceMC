@@ -290,7 +290,12 @@ class ChoiceMC(object):
             The ground state energy calculated by exact diagonalization.
         self.eiej_ED: float
             The orientational correlation calculated by exact diagonalization.
-        
+        self.purity_ED: float
+            The purity calculated by exact diagonalization.
+        self.S2_ED: float
+            The second Renyi entropy calculated by exact diagonalization.
+        self.SvN: float
+            the von Neumann entropy calculated by exact diagonalization.
         TO ADD
         -------
         Add calculations for non-PIGS simulations
@@ -365,6 +370,7 @@ class ChoiceMC(object):
         for m1 in range(size):
             SvN -= rhoA_E[m1]*np.log(abs(rhoA_E[m1]))
             S2 += (rhoA_E[m1]**2)
+        self.purity_ED = S2
         S2 = -np.log(S2)
         
         self.E0_ED = E0
